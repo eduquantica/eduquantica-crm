@@ -7,5 +7,895 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  COUNSELLOR
+  SUB_AGENT
+  STUDENT
+}
+
+enum LeadSource {
+  FACEBOOK
+  INSTAGRAM
+  WHATSAPP
+  GOOGLE_ADS
+  WEBSITE
+  REFERRAL
+  WALK_IN
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  CONVERTED
+  LOST
+}
+
+enum CourseLevel {
+  FOUNDATION
+  BACHELORS
+  MASTERS
+  PHD
+  DIPLOMA
+}
+
+enum ApplicationStatus {
+  DRAFT
+  DOCUMENTS_PENDING
+  SUBMITTED
+  UNDER_REVIEW
+  CONDITIONAL_OFFER
+  UNCONDITIONAL_OFFER
+  CAS_ISSUED
+  VISA_APPLIED
+  VISA_APPROVED
+  VISA_REJECTED
+  ENROLLED
+  WITHDRAWN
+}
+
+enum DocumentType {
+  PASSPORT
+  TRANSCRIPT
+  DEGREE_CERT
+  ENGLISH_TEST
+  SOP
+  LOR
+  CV
+  FINANCIAL_PROOF
+  PHOTO
+  VISA_DOCUMENT
+  PERSONAL_STATEMENT
+  COVER_LETTER
+  OTHER
+}
+
+enum DocumentStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum FlagColour {
+  GREEN
+  AMBER
+  RED
+}
+
+enum CommunicationType {
+  EMAIL
+  SMS
+  WHATSAPP
+  CALL
+  NOTE
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum VisaStatus {
+  PREPARING
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+enum AgentTier {
+  STANDARD
+  SILVER
+  PLATINUM
+}
+
+enum CommissionStatus {
+  PENDING_ARRIVAL
+  CALCULATED
+  INVOICED
+  PAID
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  SUBMITTED
+  APPROVED
+  PAID
+  REJECTED
+}
+
+enum ScanStatus {
+  PENDING
+  SCANNING
+  COMPLETED
+  FAILED
+}
+
+enum CounsellorDecision {
+  ACCEPTED
+  REVISION_REQUIRED
+  REJECTED
+}
+
+enum ChecklistStatus {
+  IN_PROGRESS
+  PENDING_REVIEW
+  UNDER_REVIEW
+  REVISION_NEEDED
+  VERIFIED
+  SIGNED
+}
+
+enum FraudRisk {
+  UNKNOWN
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum ItemStatus {
+  PENDING
+  UPLOADED
+  VERIFIED
+  REJECTED
+}
+
+enum QualType {
+  GCSE
+  A_LEVEL
+  O_LEVEL
+  SSC
+  HSC
+  WAEC
+  NECO
+  IB
+  FOUNDATION
+  BTEC
+  OTHER
+}
+
+enum SubjectCategory {
+  STEM
+  LANGUAGE
+  HUMANITIES
+  ARTS
+  BUSINESS
+  VOCATIONAL
+  OTHER
+}
+
+enum SubjectReqType {
+  REQUIRED
+  PREFERRED
+  EXCLUDED
+}
+
+enum MatchStatus {
+  FULL_MATCH
+  PARTIAL_MATCH
+  NO_MATCH
+}
+
+enum ScholarshipAmountType {
+  FIXED
+  PERCENTAGE
+}
+
+enum PercentageOf {
+  TUITION
+  LIVING
+  TOTAL
+}
+
+enum ScholarshipAppStatus {
+  INTERESTED
+  APPLIED
+  SHORTLISTED
+  AWARDED
+  REJECTED
+}
+
+// ─── Core Models ──────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role
+  phone     String?
+  avatar    String?
+  createdAt DateTime @default(now())
+
+  // Back-relations
+  subAgent       SubAgent?
+  student        Student?
+  assignedLeads  Lead[]          @relation("CounsellorLeads")
+  communications Communication[]
+  tasks          Task[]
+  activityLogs   ActivityLog[]
+  counsellorApps Application[]   @relation("CounsellorApplications")
+
+  @@index([email])
+  @@index([role])
+}
+
+model Lead {
+  id                   String     @id @default(cuid())
+  firstName            String
+  lastName             String
+  email                String?
+  phone                String?
+  source               LeadSource
+  status               LeadStatus @default(NEW)
+  assignedCounsellorId String?
+  assignedCounsellor   User?      @relation("CounsellorLeads", fields: [assignedCounsellorId], references: [id])
+  subAgentId           String?
+  subAgent             SubAgent?  @relation(fields: [subAgentId], references: [id])
+  nationality          String?
+  interestedCountry    String?
+  interestedLevel      String?
+  notes                String?
+  campaign             String?
+  createdAt            DateTime   @default(now())
+
+  // Back-relations
+  communications Communication[]
+  tasks          Task[]
+
+  @@index([status])
+  @@index([assignedCounsellorId])
+  @@index([subAgentId])
+  @@index([source])
+  @@index([createdAt])
+}
+
+model Student {
+  id                   String    @id @default(cuid())
+  userId               String    @unique
+  user                 User      @relation(fields: [userId], references: [id])
+  firstName            String
+  lastName             String
+  email                String
+  phone                String?
+  dateOfBirth          DateTime?
+  nationality          String?
+  passportNumber       String?
+  address              String?
+  city                 String?
+  country              String?
+  highestQualification String?
+  grades               String?
+  englishTestType      String?
+  englishTestScore     String?
+  workExperience       String?
+  maritalStatus        String?
+  emergencyContact     String?
+  subAgentId           String?
+  subAgent             SubAgent? @relation(fields: [subAgentId], references: [id])
+  preferredCurrency    String?
+
+  // Back-relations
+  applications            Application[]
+  documents               Document[]
+  communications          Communication[]
+  tasks                   Task[]
+  visaApplications        VisaApplication[]
+  documentChecklists      DocumentChecklist[]
+  academicProfile         StudentAcademicProfile?
+  eligibilityResults      CourseEligibilityResult[]
+  scholarshipApplications StudentScholarshipApplication[]
+
+  @@index([email])
+  @@index([userId])
+  @@index([subAgentId])
+  @@index([nationality])
+}
+
+model University {
+  id            String    @id @default(cuid())
+  name          String
+  country       String
+  city          String?
+  website       String?
+  logo          String?
+  ranking       Int?
+  partnerSince  DateTime?
+  currency      String    @default("GBP")
+  isActive      Boolean   @default(true)
+  contactPerson String?
+  contactEmail  String?
+
+  // Back-relations
+  courses             Course[]
+  applications        Application[]
+  commissionAgreement UniversityCommissionAgreement?
+  scholarships        Scholarship[]
+
+  @@index([country])
+  @@index([isActive])
+}
+
+model Course {
+  id           String      @id @default(cuid())
+  universityId String
+  university   University  @relation(fields: [universityId], references: [id])
+  name         String
+  level        CourseLevel
+  subject      String?
+  duration     String?
+  tuitionFee   Float?
+  currency     String
+  intakes      String[]
+  description  String?
+  isActive     Boolean     @default(true)
+
+  // Back-relations
+  applications       Application[]
+  entryRequirement   CourseEntryRequirement?
+  eligibilityResults CourseEligibilityResult[]
+  scholarships       Scholarship[]
+
+  @@index([universityId])
+  @@index([level])
+  @@index([isActive])
+}
+
+model Application {
+  id              String            @id @default(cuid())
+  studentId       String
+  student         Student           @relation(fields: [studentId], references: [id])
+  courseId        String
+  course          Course            @relation(fields: [courseId], references: [id])
+  universityId    String
+  university      University        @relation(fields: [universityId], references: [id])
+  counsellorId    String?
+  counsellor      User?             @relation("CounsellorApplications", fields: [counsellorId], references: [id])
+  status          ApplicationStatus @default(DRAFT)
+  submittedAt     DateTime?
+  offerReceivedAt DateTime?
+  notes           String?
+  priority        String?
+  createdAt       DateTime          @default(now())
+
+  // Back-relations
+  documents       Document[]
+  visaApplication VisaApplication?
+  commission      Commission?
+  checklist       DocumentChecklist?
+  scholarshipApps StudentScholarshipApplication[]
+
+  @@index([studentId])
+  @@index([courseId])
+  @@index([universityId])
+  @@index([counsellorId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Document {
+  id            String         @id @default(cuid())
+  studentId     String
+  student       Student        @relation(fields: [studentId], references: [id])
+  applicationId String?
+  application   Application?   @relation(fields: [applicationId], references: [id])
+  type          DocumentType
+  fileName      String
+  fileUrl       String
+  status        DocumentStatus @default(PENDING)
+  flagColour    FlagColour?
+  uploadedAt    DateTime       @default(now())
+
+  // Back-relations
+  scanResult     DocumentScanResult?
+  checklistItems ChecklistItem[]
+  qualifications StudentQualification[] @relation("TranscriptDocument")
+
+  @@index([studentId])
+  @@index([applicationId])
+  @@index([type])
+  @@index([status])
+}
+
+model Communication {
+  id        String            @id @default(cuid())
+  leadId    String?
+  lead      Lead?             @relation(fields: [leadId], references: [id])
+  studentId String?
+  student   Student?          @relation(fields: [studentId], references: [id])
+  userId    String
+  user      User              @relation(fields: [userId], references: [id])
+  type      CommunicationType
+  subject   String?
+  message   String
+  direction MessageDirection
+  createdAt DateTime          @default(now())
+
+  @@index([leadId])
+  @@index([studentId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model Task {
+  id          String       @id @default(cuid())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id])
+  studentId   String?
+  student     Student?     @relation(fields: [studentId], references: [id])
+  leadId      String?
+  lead        Lead?        @relation(fields: [leadId], references: [id])
+  title       String
+  description String?
+  dueDate     DateTime?
+  priority    TaskPriority @default(MEDIUM)
+  status      TaskStatus   @default(PENDING)
+  createdAt   DateTime     @default(now())
+
+  @@index([userId])
+  @@index([studentId])
+  @@index([leadId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model VisaApplication {
+  id              String      @id @default(cuid())
+  applicationId   String      @unique
+  application     Application @relation(fields: [applicationId], references: [id])
+  studentId       String
+  student         Student     @relation(fields: [studentId], references: [id])
+  country         String
+  type            String
+  appointmentDate DateTime?
+  status          VisaStatus  @default(PREPARING)
+  submittedAt     DateTime?
+  decisionAt      DateTime?
+  notes           String?
+
+  @@index([studentId])
+  @@index([status])
+}
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  entityType String
+  entityId   String
+  action     String
+  details    String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+// ─── Sub-Agent Module ─────────────────────────────────────────────────────────
+
+model SubAgent {
+  id             String    @id @default(cuid())
+  userId         String    @unique
+  user           User      @relation(fields: [userId], references: [id])
+  agencyName     String
+  agencyCountry  String?
+  agencyCity     String?
+  phone          String?
+  website        String?
+  commissionRate Float     @default(50)
+  isApproved     Boolean   @default(false)
+  approvedAt     DateTime?
+  approvedBy     String?   // User ID stored for audit trail
+  createdAt      DateTime  @default(now())
+
+  // Back-relations
+  agreement   SubAgentAgreement?
+  leads       Lead[]
+  students    Student[]
+  commissions Commission[]
+  invoices    SubAgentInvoice[]
+
+  @@index([isApproved])
+  @@index([agencyCountry])
+}
+
+model SubAgentAgreement {
+  id                   String    @id @default(cuid())
+  subAgentId           String    @unique
+  subAgent             SubAgent  @relation(fields: [subAgentId], references: [id])
+  currentTier          AgentTier @default(STANDARD)
+  currentRate          Float     @default(80) // max 90, enforced at application level
+  silverThreshold      Int?
+  platinumThreshold    Int?
+  intakePeriod         String?
+  enrolmentsThisIntake Int       @default(0)
+  manualTierOverride   Boolean   @default(false)
+  overrideReason       String?
+  overrideBy           String?   // User ID stored for audit trail
+  isActive             Boolean   @default(true)
+  agreedDate           DateTime?
+  notes                String?
+  createdBy            String?   // User ID stored for audit trail
+  createdAt            DateTime  @default(now())
+
+  @@index([currentTier])
+  @@index([isActive])
+}
+
+model UniversityCommissionAgreement {
+  id             String     @id @default(cuid())
+  universityId   String     @unique
+  university     University @relation(fields: [universityId], references: [id])
+  commissionRate Float
+  currency       String
+  agreedDate     DateTime?
+  validUntil     DateTime?
+  notes          String?
+  isActive       Boolean    @default(true)
+  createdBy      String?    // User ID stored for audit trail
+  createdAt      DateTime   @default(now())
+
+  // Back-relations
+  commissions Commission[]
+
+  @@index([isActive])
+}
+
+model Commission {
+  id                    String                        @id @default(cuid())
+  applicationId         String                        @unique
+  application           Application                   @relation(fields: [applicationId], references: [id])
+  universityAgreementId String
+  universityAgreement   UniversityCommissionAgreement @relation(fields: [universityAgreementId], references: [id])
+  tuitionFee            Float
+  universityCommRate    Float
+  grossCommission       Float
+  currency              String
+  subAgentId            String?
+  subAgent              SubAgent?                     @relation(fields: [subAgentId], references: [id])
+  agentTierAtTime       String?
+  agentRateAtTime       Float?
+  agentAmount           Float?
+  eduquanticaNet        Float?
+  status                CommissionStatus              @default(PENDING_ARRIVAL)
+  visaApprovedAt        DateTime?
+  enrolmentConfirmedAt  DateTime?
+  confirmedBy           String?   // User ID stored for audit trail
+  notes                 String?
+  createdAt             DateTime                      @default(now())
+
+  @@index([universityAgreementId])
+  @@index([subAgentId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model SubAgentInvoice {
+  id            String        @id @default(cuid())
+  invoiceNumber String        @unique
+  subAgentId    String
+  subAgent      SubAgent      @relation(fields: [subAgentId], references: [id])
+  totalAmount   Float
+  currency      String
+  pdfUrl        String?
+  status        InvoiceStatus @default(SUBMITTED)
+  submittedAt   DateTime      @default(now())
+  bankDetails   String?
+  adminNote     String?
+  approvedBy    String?       // User ID stored for audit trail
+  approvedAt    DateTime?
+  paidAt        DateTime?
+  paymentRef    String?
+  createdAt     DateTime      @default(now())
+
+  @@index([subAgentId])
+  @@index([status])
+  @@index([invoiceNumber])
+}
+
+// ─── Document Scanning Module ─────────────────────────────────────────────────
+
+model DocumentScanResult {
+  id                 String              @id @default(cuid())
+  documentId         String              @unique
+  document           Document            @relation(fields: [documentId], references: [id])
+  scanId             String?
+  status             ScanStatus          @default(PENDING)
+  plagiarismScore    Float?
+  aiScore            Float?
+  reportUrl          String?
+  flagColour         FlagColour?
+  counsellorDecision CounsellorDecision?
+  counsellorNote     String?
+  reviewedBy         String?             // User ID stored for audit trail
+  reviewedAt         DateTime?
+  scannedAt          DateTime?
+  createdAt          DateTime            @default(now())
+
+  @@index([status])
+  @@index([flagColour])
+}
+
+model ScanSettings {
+  id                       String  @id @default(cuid())
+  plagiarismAmberThreshold Float   @default(16)
+  plagiarismRedThreshold   Float   @default(31)
+  aiAmberThreshold         Float   @default(21)
+  aiRedThreshold           Float   @default(41)
+  autoApproveGreen         Boolean @default(false)
+  autoAlertAdmin           Boolean @default(true)
+}
+
+// ─── Currency Module ──────────────────────────────────────────────────────────
+
+model CurrencyRate {
+  id             String   @id @default(cuid())
+  baseCurrency   String
+  targetCurrency String
+  rate           Float
+  source         String?
+  fetchedAt      DateTime @default(now())
+
+  @@unique([baseCurrency, targetCurrency])
+  @@index([baseCurrency])
+  @@index([fetchedAt])
+}
+
+// ─── Document Checklist Module ────────────────────────────────────────────────
+
+model DocumentChecklist {
+  id                 String          @id @default(cuid())
+  applicationId      String          @unique
+  application        Application     @relation(fields: [applicationId], references: [id])
+  studentId          String
+  student            Student         @relation(fields: [studentId], references: [id])
+  destinationCountry String?
+  courseLevel        String?
+  status             ChecklistStatus @default(IN_PROGRESS)
+  verifiedBy         String?         // User ID stored for audit trail
+  verifiedAt         DateTime?
+  verificationRef    String?         @unique
+  signedPdfUrl       String?
+  createdAt          DateTime        @default(now())
+
+  // Back-relations
+  items ChecklistItem[]
+
+  @@index([studentId])
+  @@index([status])
+}
+
+model ChecklistItem {
+  id              String            @id @default(cuid())
+  checklistId     String
+  checklist       DocumentChecklist @relation(fields: [checklistId], references: [id])
+  documentType    DocumentType
+  label           String
+  isRequired      Boolean           @default(true)
+  isConditional   Boolean           @default(false)
+  conditionalNote String?
+  documentId      String?
+  document        Document?         @relation(fields: [documentId], references: [id])
+  ocrStatus       String?
+  ocrData         Json?
+  fraudRiskLevel  FraudRisk         @default(UNKNOWN)
+  fraudFlags      String[]
+  ocrConfidence   Float?
+  status          ItemStatus        @default(PENDING)
+  counsellorNote  String?
+  verifiedBy      String?           // User ID stored for audit trail
+  verifiedAt      DateTime?
+  createdAt       DateTime          @default(now())
+
+  @@index([checklistId])
+  @@index([status])
+  @@index([fraudRiskLevel])
+}
+
+// ─── Academic Profile Module ──────────────────────────────────────────────────
+
+model StudentAcademicProfile {
+  id          String   @id @default(cuid())
+  studentId   String   @unique
+  student     Student  @relation(fields: [studentId], references: [id])
+  isComplete  Boolean  @default(false)
+  lastUpdated DateTime @updatedAt
+
+  // Back-relations
+  qualifications StudentQualification[]
+
+  @@index([studentId])
+}
+
+model StudentQualification {
+  id                    String                 @id @default(cuid())
+  academicProfileId     String
+  academicProfile       StudentAcademicProfile @relation(fields: [academicProfileId], references: [id])
+  qualType              QualType
+  qualName              String
+  yearCompleted         Int?
+  institutionName       String?
+  overallGrade          String?
+  overallUniversal      Float?
+  transcriptDocId       String?
+  transcriptDoc         Document?              @relation("TranscriptDocument", fields: [transcriptDocId], references: [id])
+  ocrConfirmedByStudent Boolean                @default(false)
+  createdAt             DateTime               @default(now())
+
+  // Back-relations
+  subjects StudentSubjectGrade[]
+
+  @@index([academicProfileId])
+  @@index([qualType])
+}
+
+model StudentSubjectGrade {
+  id                   String               @id @default(cuid())
+  qualificationId      String
+  qualification        StudentQualification @relation(fields: [qualificationId], references: [id])
+  subjectName          String
+  subjectCategory      SubjectCategory
+  rawGrade             String?
+  universalScore       Float?
+  ocrConfidence        Float?
+  isOcrExtracted       Boolean              @default(false)
+  isConfirmedByStudent Boolean              @default(false)
+  createdAt            DateTime             @default(now())
+
+  @@index([qualificationId])
+  @@index([subjectCategory])
+}
+
+// ─── Course Entry Requirements Module ────────────────────────────────────────
+
+model CourseEntryRequirement {
+  id                  String     @id @default(cuid())
+  courseId            String     @unique
+  course              Course     @relation(fields: [courseId], references: [id])
+  acceptedQualTypes   QualType[]
+  overallMinUniversal Float?
+  overallDescription  String?
+  englishReqIelts     Float?
+  englishReqPte       Float?
+  englishReqToefl     Float?
+  additionalNotes     String?
+  updatedAt           DateTime   @updatedAt
+
+  // Back-relations
+  subjectRequirements CourseSubjectRequirement[]
+
+  @@index([courseId])
+}
+
+model CourseSubjectRequirement {
+  id                 String                 @id @default(cuid())
+  entryReqId         String
+  entryReq           CourseEntryRequirement @relation(fields: [entryReqId], references: [id])
+  subjectName        String
+  subjectAliases     String[]
+  subjectCategory    SubjectCategory?
+  minimumUniversal   Float?
+  minimumDescription String?
+  requirementType    SubjectReqType         @default(REQUIRED)
+  isAlternativeGroup Boolean                @default(false)
+  alternativeGroupId String?
+
+  @@index([entryReqId])
+  @@index([requirementType])
+}
+
+model CourseEligibilityResult {
+  id                 String      @id @default(cuid())
+  studentId          String
+  student            Student     @relation(fields: [studentId], references: [id])
+  courseId           String
+  course             Course      @relation(fields: [courseId], references: [id])
+  matchStatus        MatchStatus
+  overallMet         Boolean
+  matchScore         Float
+  subjectResults     Json?
+  missingSubjects    String[]
+  weakSubjects       String[]
+  englishMet         Boolean?
+  counsellorFlagNote String?
+  calculatedAt       DateTime    @default(now())
+
+  @@unique([studentId, courseId])
+  @@index([studentId])
+  @@index([courseId])
+  @@index([matchStatus])
+}
+
+// ─── Scholarship Module ───────────────────────────────────────────────────────
+
+model Scholarship {
+  id                      String                @id @default(cuid())
+  universityId            String
+  university              University            @relation(fields: [universityId], references: [id])
+  courseId                String?               // null = university-wide scholarship
+  course                  Course?               @relation(fields: [courseId], references: [id])
+  name                    String
+  description             String?
+  amount                  Float
+  currency                String
+  amountType              ScholarshipAmountType
+  percentageOf            PercentageOf?         // only relevant when amountType = PERCENTAGE
+  isPartial               Boolean               @default(false)
+  deadline                DateTime?
+  intakePeriod            String?
+  eligibilityCriteria     String
+  nationalityRestrictions String[]
+  minAcademicScore        Float?
+  minEnglishScore         Float?
+  isAutoRenewable         Boolean               @default(false)
+  isActive                Boolean               @default(true)
+  applicationProcess      String?
+  externalUrl             String?
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
+
+  // Back-relations
+  applications StudentScholarshipApplication[]
+
+  @@index([universityId])
+  @@index([courseId])
+  @@index([isActive])
+}
+
+model StudentScholarshipApplication {
+  id             String               @id @default(cuid())
+  studentId      String
+  student        Student              @relation(fields: [studentId], references: [id])
+  scholarshipId  String
+  scholarship    Scholarship          @relation(fields: [scholarshipId], references: [id])
+  applicationId  String?
+  application    Application?         @relation(fields: [applicationId], references: [id])
+  status         ScholarshipAppStatus @default(INTERESTED)
+  appliedAt      DateTime?
+  awardedAmount  Float?
+  notes          String?
+  counsellorNote String?
+  createdAt      DateTime             @default(now())
+
+  @@index([studentId])
+  @@index([scholarshipId])
+  @@index([applicationId])
+  @@index([status])
 }
