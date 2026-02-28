@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@prisma/adapter-pg": "^7.4.1",
     "@prisma/client": "^7.4.1",
     "@tanstack/react-query": "^5.90.21",
     "bcryptjs": "^3.0.3",
@@ -20,7 +21,9 @@
     "mindee": "^5.0.1",
     "next": "14.2.35",
     "next-auth": "^4.24.13",
+    "nodemailer": "^7.0.13",
     "pdf-lib": "^1.17.1",
+    "pg": "^8.19.0",
     "prisma": "^7.4.1",
     "react": "^18",
     "react-dom": "^18",
@@ -31,15 +34,21 @@
     "uploadthing": "^7.7.4",
     "zod": "^4.3.6"
   },
+  "prisma": {
+    "seed": "npx tsx prisma/seed.ts"
+  },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.19.34",
+    "@types/nodemailer": "^7.0.11",
+    "@types/pg": "^8.16.0",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "eslint": "^8",
     "eslint-config-next": "14.2.35",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }

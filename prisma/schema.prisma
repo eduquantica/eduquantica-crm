@@ -11,13 +11,6 @@ datasource db {
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
-enum Role {
-  ADMIN
-  COUNSELLOR
-  SUB_AGENT
-  STUDENT
-}
-
 enum LeadSource {
   FACEBOOK
   INSTAGRAM
@@ -123,6 +116,13 @@ enum AgentTier {
   STANDARD
   SILVER
   PLATINUM
+}
+
+enum SubAgentApprovalStatus {
+  PENDING
+  INFO_REQUESTED
+  APPROVED
+  REJECTED
 }
 
 enum CommissionStatus {
@@ -231,6 +231,38 @@ enum ScholarshipAppStatus {
   REJECTED
 }
 
+// ─── RBAC Module ─────────────────────────────────────────────────────────────
+
+model Role {
+  id          String       @id @default(cuid())
+  name        String       @unique // e.g. "ADMIN", "COUNSELLOR", "MANAGER", "STUDENT", "SUB_AGENT"
+  label       String       // e.g. "Admin", "Counsellor"
+  isBuiltIn   Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+
+  // Back-relations
+  permissions Permission[]
+  users       User[]
+
+  @@index([name])
+}
+
+model Permission {
+  id        String  @id @default(cuid())
+  roleId    String
+  role      Role    @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  module    String  // "leads"|"students"|"applications"|"universities"|"courses"|
+                    // "sub-agents"|"communications"|"tasks"|"commissions"|
+                    // "visa"|"documents"|"reports"|"settings"
+  canView   Boolean @default(false)
+  canCreate Boolean @default(false)
+  canEdit   Boolean @default(false)
+  canDelete Boolean @default(false)
+
+  @@unique([roleId, module])
+  @@index([roleId])
+}
+
 // ─── Core Models ──────────────────────────────────────────────────────────────
 
 model User {
@@ -238,22 +270,25 @@ model User {
   email     String   @unique
   password  String
   name      String
-  role      Role
+  roleId    String
+  role      Role     @relation(fields: [roleId], references: [id])
   phone     String?
   avatar    String?
   createdAt DateTime @default(now())
 
   // Back-relations
-  subAgent       SubAgent?
-  student        Student?
-  assignedLeads  Lead[]          @relation("CounsellorLeads")
-  communications Communication[]
-  tasks          Task[]
-  activityLogs   ActivityLog[]
-  counsellorApps Application[]   @relation("CounsellorApplications")
+  subAgent            SubAgent?
+  student             Student?
+  assignedLeads       Lead[]                @relation("CounsellorLeads")
+  communications      Communication[]
+  tasks               Task[]
+  activityLogs        ActivityLog[]
+  counsellorApps      Application[]         @relation("CounsellorApplications")
+  handledInfoRequests SubAgentInfoRequest[]
+  passwordResetTokens PasswordResetToken[]
 
   @@index([email])
-  @@index([role])
+  @@index([roleId])
 }
 
 model Lead {
@@ -511,28 +546,37 @@ model ActivityLog {
 // ─── Sub-Agent Module ─────────────────────────────────────────────────────────
 
 model SubAgent {
-  id             String    @id @default(cuid())
-  userId         String    @unique
-  user           User      @relation(fields: [userId], references: [id])
-  agencyName     String
-  agencyCountry  String?
-  agencyCity     String?
-  phone          String?
-  website        String?
-  commissionRate Float     @default(50)
-  isApproved     Boolean   @default(false)
-  approvedAt     DateTime?
-  approvedBy     String?   // User ID stored for audit trail
-  createdAt      DateTime  @default(now())
+  id               String                 @id @default(cuid())
+  userId           String                 @unique
+  user             User                   @relation(fields: [userId], references: [id])
+  agencyName       String
+  agencyCountry    String?
+  agencyCity       String?
+  phone            String?
+  website          String?
+  commissionRate   Float                  @default(50)
+  isApproved       Boolean                @default(false)
+  approvedAt       DateTime?
+  approvedBy       String?                // User ID stored for audit trail
+  approvalStatus   SubAgentApprovalStatus @default(PENDING)
+  rejectedAt       DateTime?
+  rejectedBy       String?                // User ID stored for audit trail
+  rejectionReason  String?
+  revokedAt        DateTime?
+  revokedBy        String?                // User ID stored for audit trail
+  revokeReason     String?
+  createdAt        DateTime               @default(now())
 
   // Back-relations
-  agreement   SubAgentAgreement?
-  leads       Lead[]
-  students    Student[]
-  commissions Commission[]
-  invoices    SubAgentInvoice[]
+  agreement    SubAgentAgreement?
+  leads        Lead[]
+  students     Student[]
+  commissions  Commission[]
+  invoices     SubAgentInvoice[]
+  infoRequests SubAgentInfoRequest[]
 
   @@index([isApproved])
+  @@index([approvalStatus])
   @@index([agencyCountry])
 }
 
@@ -628,6 +672,23 @@ model SubAgentInvoice {
   @@index([subAgentId])
   @@index([status])
   @@index([invoiceNumber])
+}
+
+model SubAgentInfoRequest {
+  id                 String    @id @default(cuid())
+  subAgentId         String
+  subAgent           SubAgent  @relation(fields: [subAgentId], references: [id])
+  adminId            String
+  admin              User      @relation(fields: [adminId], references: [id])
+  adminMessage       String
+  adminAttachmentUrl String?
+  agentResponse      String?
+  agentAttachmentUrl String?
+  respondedAt        DateTime?
+  createdAt          DateTime  @default(now())
+
+  @@index([subAgentId])
+  @@index([adminId])
 }
 
 // ─── Document Scanning Module ─────────────────────────────────────────────────
@@ -898,4 +959,19 @@ model StudentScholarshipApplication {
   @@index([scholarshipId])
   @@index([applicationId])
   @@index([status])
+}
+
+// ─── Auth Module ──────────────────────────────────────────────────────────────
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
 }
