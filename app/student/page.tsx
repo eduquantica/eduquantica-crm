@@ -1,8 +1,5 @@
-export default function StudentHome() {
-  return (
-    <main style={{ padding: 24 }}>
-      <h1>Student Portal</h1>
-      <p>Placeholder page (will be replaced by the student dashboard).</p>
-    </main>
-  );
+import { redirect } from "next/navigation";
+
+export default function StudentIndexPage() {
+  redirect("/student/dashboard");
 }

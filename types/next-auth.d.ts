@@ -16,6 +16,9 @@ declare module "next-auth" {
       permissions: PermissionMap;
       subAgentApproved?: boolean;
       subAgentApprovalStatus?: string;
+      subAgentStaffId?: string;
+      subAgentId?: string;
+      isBranchCounsellor?: boolean;
     } & DefaultSession["user"];
   }
 
@@ -26,6 +29,9 @@ declare module "next-auth" {
     permissions: PermissionMap;
     subAgentApproved?: boolean;
     subAgentApprovalStatus?: string;
+    subAgentStaffId?: string;
+    subAgentId?: string;
+    isBranchCounsellor?: boolean;
   }
 }
 
@@ -38,5 +44,8 @@ declare module "next-auth/jwt" {
     permissions: PermissionMap;
     subAgentApproved?: boolean;
     subAgentApprovalStatus?: string;
+    subAgentStaffId?: string;
+    subAgentId?: string;
+    isBranchCounsellor?: boolean;
   }
 }

@@ -1,0 +1,164 @@
+[
+  {
+    "id": 1,
+    "title": "Open Add Qualification modal",
+    "status": "PASS",
+    "note": "Opened Step 1."
+  },
+  {
+    "id": 2,
+    "title": "Step 1 Next works",
+    "status": "PASS",
+    "note": "Reached Step 2."
+  },
+  {
+    "id": 3,
+    "title": "Step 2 Back and Next work",
+    "status": "PASS",
+    "note": "Back and Next both worked."
+  },
+  {
+    "id": 4,
+    "title": "Step 3 shows both actions",
+    "status": "PASS",
+    "note": "Save Without OCR=true, Upload and Run OCR=true"
+  },
+  {
+    "id": 5,
+    "title": "Step 4 subject cursor does not jump",
+    "status": "FAIL",
+    "note": "Blocked: could not reach Step 4 after Save Without OCR."
+  },
+  {
+    "id": 6,
+    "title": "Step 4 GPA grade values appear",
+    "status": "FAIL",
+    "note": "Blocked: could not reach Step 4 after Save Without OCR."
+  },
+  {
+    "id": 7,
+    "title": "Step 4 Letter grade options appear",
+    "status": "FAIL",
+    "note": "Blocked: could not reach Step 4 after Save Without OCR."
+  },
+  {
+    "id": 8,
+    "title": "Step 4 Save and Next and Back work",
+    "status": "FAIL",
+    "note": "Blocked: could not reach Step 4 after Save Without OCR."
+  },
+  {
+    "id": 9,
+    "title": "Saved qualification appears with correct grade",
+    "status": "FAIL",
+    "note": "Blocked: Step 4 flow did not complete."
+  },
+  {
+    "id": 10,
+    "title": "Edit appears on every qualification card",
+    "status": "PASS",
+    "note": "cards=8"
+  },
+  {
+    "id": 13,
+    "title": "Delete appears on every qualification card",
+    "status": "PASS",
+    "note": "cards=8"
+  },
+  {
+    "id": 11,
+    "title": "Edit opens pre-filled modal",
+    "status": "FAIL",
+    "note": "heading=true, prefill=false"
+  },
+  {
+    "id": 12,
+    "title": "Edit grade save updates card instantly",
+    "status": "FAIL",
+    "note": "Waiting failed: 30000ms exceeded"
+  },
+  {
+    "id": 14,
+    "title": "Delete shows confirmation dialog",
+    "status": "PASS",
+    "note": "Native confirm dialog shown."
+  },
+  {
+    "id": 15,
+    "title": "Confirm delete removes card instantly",
+    "status": "FAIL",
+    "note": "before=8, after=8"
+  },
+  {
+    "id": 16,
+    "title": "Open student record in admin portal",
+    "status": "PASS",
+    "note": "Opened student cmmr1kcb50067t9vazvk5tda9"
+  },
+  {
+    "id": 17,
+    "title": "Go to Academic Profile tab",
+    "status": "PASS",
+    "note": "Academic tab opened."
+  },
+  {
+    "id": 18,
+    "title": "Edit Mode toggle visible",
+    "status": "FAIL",
+    "note": "No edit controls found in academic table."
+  },
+  {
+    "id": 19,
+    "title": "Toggle Edit Mode enables editing",
+    "status": "FAIL",
+    "note": "Could not click element with text: Edit Grade"
+  },
+  {
+    "id": 20,
+    "title": "Subject grade type selector appears",
+    "status": "FAIL",
+    "note": "Could not click element with text: Edit Grade"
+  },
+  {
+    "id": 21,
+    "title": "Admin grade change saves correctly",
+    "status": "FAIL",
+    "note": "Could not click element with text: Save"
+  },
+  {
+    "id": 22,
+    "title": "Open student in agent portal",
+    "status": "PASS",
+    "note": "Opened http://localhost:3002/agent/students/cmmr1kcb50067t9vazvk5tda9"
+  },
+  {
+    "id": 23,
+    "title": "Go to Academic Profile section",
+    "status": "FAIL",
+    "note": "Could not click element with text: academic"
+  },
+  {
+    "id": 24,
+    "title": "Edit Grade appears next to each subject",
+    "status": "FAIL",
+    "note": "Edit Grade button not found."
+  },
+  {
+    "id": 25,
+    "title": "Edit Grade opens grade type selector",
+    "status": "FAIL",
+    "note": "Could not click element with text: Edit Grade"
+  },
+  {
+    "id": 26,
+    "title": "Agent GPA save updates instantly",
+    "status": "FAIL",
+    "note": "No element found for selector: input[type=\"number\"]"
+  },
+  {
+    "id": 27,
+    "title": "Agent Letter A* save updates instantly",
+    "status": "FAIL",
+    "note": "Could not click element with text: Edit Grade"
+  }
+]

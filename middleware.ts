@@ -4,13 +4,17 @@ import { getToken } from "next-auth/jwt";
 // ─── Route helpers ────────────────────────────────────────────────────────────
 
 function isStaffRole(roleName: string): boolean {
-  // ADMIN, COUNSELLOR, MANAGER, or any custom (non-student, non-agent) role
-  return roleName !== "STUDENT" && roleName !== "SUB_AGENT";
+  return roleName === "ADMIN" || roleName === "MANAGER" || roleName === "COUNSELLOR";
+}
+
+function isAgentRole(roleName: string): boolean {
+  return roleName === "SUB_AGENT" || roleName === "BRANCH_MANAGER" || roleName === "SUB_AGENT_COUNSELLOR";
 }
 
 function portalPath(roleName: string, subAgentApproved?: boolean): string {
-  if (roleName === "STUDENT") return "/student";
-  if (roleName === "SUB_AGENT") return subAgentApproved ? "/agent" : "/agent/pending";
+  if (roleName === "STUDENT") return "/student/dashboard";
+  if (roleName === "SUB_AGENT") return subAgentApproved ? "/agent/dashboard" : "/agent/pending";
+  if (roleName === "BRANCH_MANAGER" || roleName === "SUB_AGENT_COUNSELLOR") return "/agent/dashboard";
   return "/dashboard";
 }
 
@@ -32,11 +36,30 @@ export async function middleware(request: NextRequest) {
   // /api/auth/* is handled by NextAuth — never intercept
   if (pathname.startsWith("/api/auth")) return NextResponse.next();
 
+  // Public APIs and token/header-protected endpoints that should bypass session auth
+  if (pathname.startsWith("/api/public/")) return NextResponse.next();
+  if (pathname.startsWith("/api/cron/")) return NextResponse.next();
+  if (pathname.startsWith("/api/mobile-upload/")) return NextResponse.next();
+
+  // Mobile upload bridge pages are token-secured; do not require session auth
+  if (pathname.startsWith("/upload/mobile/")) return NextResponse.next();
+  if (pathname.startsWith("/mobile-upload/")) return NextResponse.next();
+
+  // Public API routes (no login required)
+  if (pathname === "/api/agent/apply") return NextResponse.next();
+  if (pathname === "/api/agent/register") return NextResponse.next();
+  if (pathname === "/api/auth/check-email") return NextResponse.next();
+  if (pathname === "/api/auth/register-student") return NextResponse.next();
+  if (pathname === "/api/auth/forgot-password") return NextResponse.next();
+  if (pathname === "/api/auth/reset-password") return NextResponse.next();
+
   // ── /register ───────────────────────────────────────────────────────────────
   if (pathname === "/register") {
-    // Logged-in student → redirect to portal
-    if (isAuthenticated && roleName === "STUDENT") {
-      return NextResponse.redirect(new URL("/student", request.url));
+    // Logged-in users should not access register
+    if (isAuthenticated && roleName) {
+      return NextResponse.redirect(
+        new URL(portalPath(roleName, subAgentApproved), request.url),
+      );
     }
     return NextResponse.next();
   }
@@ -50,10 +73,20 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  if (pathname === "/agent/register" || pathname === "/agent/register/success") {
+    if (isAuthenticated && roleName === "SUB_AGENT") {
+      return NextResponse.redirect(new URL("/agent/pending", request.url));
+    }
+    return NextResponse.next();
+  }
+
   // ── /agent/pending ──────────────────────────────────────────────────────────
   if (pathname === "/agent/pending") {
-    if (!isAuthenticated || roleName !== "SUB_AGENT") {
+    if (!isAuthenticated || (roleName !== "SUB_AGENT" && roleName !== "ADMIN")) {
       return NextResponse.redirect(new URL("/login", request.url));
+    }
+    if (roleName === "ADMIN") {
+      return NextResponse.next();
     }
     return NextResponse.next();
   }
@@ -76,6 +109,9 @@ export async function middleware(request: NextRequest) {
   // ── All remaining routes require authentication ──────────────────────────────
   if (!isAuthenticated) {
     const loginUrl = new URL("/login", request.url);
+    if (pathname.startsWith("/student/courses")) {
+      loginUrl.searchParams.set("message", "Please log in to search courses");
+    }
     loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);
   }
@@ -93,10 +129,13 @@ export async function middleware(request: NextRequest) {
 
   // ── /agent/* (approved agents only) ─────────────────────────────────────────
   if (pathname.startsWith("/agent")) {
-    if (roleName !== "SUB_AGENT") {
+    if (roleName === "ADMIN") {
+      return NextResponse.next();
+    }
+    if (!isAgentRole(roleName!)) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
-    if (!subAgentApproved) {
+    if (roleName === "SUB_AGENT" && !subAgentApproved) {
       return NextResponse.redirect(new URL("/agent/pending", request.url));
     }
     return NextResponse.next();
@@ -104,6 +143,9 @@ export async function middleware(request: NextRequest) {
 
   // ── /student/* ───────────────────────────────────────────────────────────────
   if (pathname.startsWith("/student")) {
+    if (roleName === "ADMIN") {
+      return NextResponse.next();
+    }
     if (roleName !== "STUDENT") {
       return NextResponse.redirect(
         new URL(portalPath(roleName!, subAgentApproved), request.url),

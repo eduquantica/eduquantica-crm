@@ -11,9 +11,9 @@ export function getPortalPath(
   roleName: string,
   subAgentApproved?: boolean,
 ): string {
-  if (roleName === "STUDENT") return "/student";
+  if (roleName === "STUDENT") return "/student/dashboard";
   if (roleName === "SUB_AGENT") {
-    return subAgentApproved ? "/agent" : "/agent/pending";
+    return subAgentApproved ? "/agent/dashboard" : "/agent/pending";
   }
   // ADMIN, COUNSELLOR, MANAGER, or any custom staff role → dashboard
   return "/dashboard";

@@ -22,6 +22,23 @@ function isSmtpConfigured(): boolean {
   return Boolean(process.env.SMTP_HOST);
 }
 
+// ─── Generic send ─────────────────────────────────────────────────────────────
+
+interface MailOptions {
+  to: string;
+  subject: string;
+  text: string;
+  html?: string;
+}
+
+export async function sendMail({ to, subject, text, html }: MailOptions): Promise<void> {
+  if (!isSmtpConfigured()) {
+    console.log(`\n[DEV] Email to ${to}\nSubject: ${subject}\n${text}\n`);
+    return;
+  }
+  await getTransporter().sendMail({ from: FROM, to, subject, text, html });
+}
+
 // ─── Password reset ───────────────────────────────────────────────────────────
 
 export async function sendPasswordResetEmail(
@@ -45,7 +62,10 @@ export async function sendPasswordResetEmail(
     subject: "Reset your EduQuantica password",
     html: `
       <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;color:#111;">
-        <img src="${process.env.NEXTAUTH_URL}/logo.png" alt="EduQuantica" style="height:40px;margin-bottom:24px;" />
+        <div style="display:inline-flex;align-items:center;gap:10px;margin-bottom:24px;">
+          <div style="height:36px;width:36px;border-radius:8px;background:#e5edff;color:#2563eb;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;">EQ</div>
+          <div style="font-size:18px;font-weight:700;color:#1f2937;">EduQuantica</div>
+        </div>
         <h2 style="margin-top:0;font-size:22px;">Reset your password</h2>
         <p style="color:#555;line-height:1.6;">
           We received a request to reset the password for your EduQuantica account.

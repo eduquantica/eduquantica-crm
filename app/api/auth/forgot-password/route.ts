@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
-import { sendPasswordResetEmail } from "@/lib/email";
+import { sendResendEmail } from "@/lib/resend";
 import { z } from "zod";
 
 const schema = z.object({
@@ -36,9 +36,20 @@ export async function POST(req: NextRequest) {
       data: { userId: user.id, token, expiresAt },
     });
 
-    const resetUrl = `${process.env.NEXTAUTH_URL}/reset-password?token=${token}`;
+    const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
+    const resetUrl = `${baseUrl}/reset-password?token=${token}`;
 
-    await sendPasswordResetEmail(user.email, resetUrl);
+    await sendResendEmail({
+      to: user.email,
+      subject: "EduQuantica Password Reset",
+      html: `
+        <p>Hello${user.name ? ` ${user.name}` : ""},</p>
+        <p>We received a request to reset your password.</p>
+        <p><a href="${resetUrl}">Reset your password</a></p>
+        <p>This link expires in 1 hour.</p>
+        <p>If you did not request this, you can ignore this email.</p>
+      `,
+    });
 
     return NextResponse.json({
       message: "If that email exists, a reset link has been sent.",

@@ -1,5 +1,61 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## EduQuantica Operational Safety
+
+### Stable layout foundation
+
+The portal layouts are protected single sources of truth:
+
+- app/dashboard/layout.tsx
+- app/agent/layout.tsx
+- app/student/layout.tsx
+
+Do not add sidebar imports or layout wrappers inside page components.
+
+### Auth and data health checks
+
+Run these checks when login or data looks unstable:
+
+```bash
+npm run check:auth
+npm run check:layouts
+```
+
+Health endpoint:
+
+```bash
+GET /api/health
+```
+
+### Recovery and clean start
+
+If the app looks broken run:
+
+```bash
+npm run fresh
+```
+
+If login stops working run:
+
+```bash
+npx prisma db seed
+```
+
+If database is out of sync run:
+
+```bash
+npx prisma migrate dev && npx prisma db seed
+```
+
+### Layout rules for future module work
+
+LAYOUT RULES - NEVER VIOLATE:
+
+- Never import Sidebar components inside page files
+- Never add layout wrappers inside page components
+- Never modify layout.tsx files unless explicitly instructed
+- Always use the existing layout by just returning page content
+
 ## Getting Started
 
 First, run the development server:

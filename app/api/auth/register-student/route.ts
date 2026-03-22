@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { getNextCounsellor } from "@/lib/counsellor";
+import { sendResendEmail } from "@/lib/resend";
+import { NotificationService } from "@/lib/notifications";
 
 const schema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -46,8 +49,21 @@ export async function POST(req: NextRequest) {
 
     const hashed = await bcrypt.hash(data.password, 12);
 
+    const referralCookie = req.cookies.get("eq_ref")?.value?.trim();
+
+    let referredSubAgentId: string | null = null;
+    if (referralCookie) {
+      const referredBy = await db.subAgent.findFirst({
+        where: { referralCode: referralCookie },
+        select: { id: true },
+      });
+      referredSubAgentId = referredBy?.id ?? null;
+    }
+
+    const counsellor = await getNextCounsellor();
+
     // Create User + Student in a transaction
-    await db.$transaction(async (tx) => {
+    const created = await db.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
           email: data.email.toLowerCase(),
@@ -58,7 +74,7 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      await tx.student.create({
+      const student = await tx.student.create({
         data: {
           userId: user.id,
           firstName: data.firstName,
@@ -67,14 +83,55 @@ export async function POST(req: NextRequest) {
           phone: data.phone ?? null,
           nationality: data.nationality ?? null,
           dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
+          assignedCounsellorId: counsellor?.id ?? null,
+          subAgentId: referredSubAgentId,
+          referredBySubAgentId: referredSubAgentId,
         },
       });
+
+      return { user, student };
     });
 
-    return NextResponse.json(
-      { message: "Account created successfully." },
-      { status: 201 },
-    );
+    const studentName = `${created.student.firstName} ${created.student.lastName}`.trim();
+    const loginUrl = `${process.env.NEXTAUTH_URL || ""}/login`;
+
+    await sendResendEmail({
+      to: created.user.email,
+      subject: `Welcome to EduQuantica - ${created.student.firstName}!`,
+      html: `
+        <p>Hi ${created.student.firstName},</p>
+        <p>Welcome to EduQuantica. We help you discover courses, track applications, and upload documents in one place.</p>
+        <p><a href="${loginUrl}">Log in to your account</a></p>
+        <p>Get started in 3 quick steps:</p>
+        <ol>
+          <li>Complete your onboarding preferences</li>
+          <li>Add your qualifications</li>
+          <li>Start chatting with Eduvi and your counsellor</li>
+        </ol>
+      `,
+    }).catch(() => undefined);
+
+    if (counsellor?.id) {
+      await NotificationService.createNotification({
+        userId: counsellor.id,
+        type: "STUDENT_REGISTERED",
+        message: `New student registered: ${studentName} - ${created.student.nationality || "Unknown"}`,
+        linkUrl: `/dashboard/students/${created.student.id}`,
+        actorUserId: created.user.id,
+      }).catch(() => undefined);
+    }
+
+    if (counsellor?.email) {
+      await sendResendEmail({
+        to: counsellor.email,
+        subject: `New student registered: ${studentName}`,
+        html: `<p>New student registered: <strong>${studentName}</strong> - ${created.student.nationality || "Unknown"}</p>`,
+      }).catch(() => undefined);
+    }
+
+    const response = NextResponse.json({ message: "Account created successfully." }, { status: 201 });
+    response.cookies.set("eq_ref", "", { path: "/", maxAge: 0 });
+    return response;
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
