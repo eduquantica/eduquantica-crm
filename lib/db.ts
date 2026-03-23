@@ -7,7 +7,19 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient() {
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    // Configure connection pool for optimal performance
+    // max: number of connections in the pool
+    // min: minimum number of connections to keep open
+    max: 20, // Reasonable default for most apps
+    idleTimeoutMillis: 30000, // Close idle connections after 30s
+    connectionTimeoutMillis: 2000, // Timeout after 2s if can't get connection
+    // For connection pooling (PgBouncer), use:
+    // max: 5-10, // Lower number with PgBouncer
+    // idleTimeoutMillis: 600000, // Longer timeout with PgBouncer
+  });
+
   const adapter = new PrismaPg(pool);
   return new PrismaClient({
     adapter,
