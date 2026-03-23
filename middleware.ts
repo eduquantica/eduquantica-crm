@@ -36,6 +36,10 @@ export async function middleware(request: NextRequest) {
   // /api/auth/* is handled by NextAuth — never intercept
   if (pathname.startsWith("/api/auth")) return NextResponse.next();
 
+  // Health check endpoints (no auth required)
+  if (pathname === "/health") return NextResponse.next();
+  if (pathname === "/api/health") return NextResponse.next();
+
   // Public APIs and token/header-protected endpoints that should bypass session auth
   if (pathname.startsWith("/api/public/")) return NextResponse.next();
   if (pathname.startsWith("/api/cron/")) return NextResponse.next();
