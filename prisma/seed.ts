@@ -1061,6 +1061,240 @@ async function main() {
   }
 
   // Seed default payment methods
+  const providerSeeds = [
+    {
+      name: "Unite Students",
+      type: "ACCOMMODATION" as const,
+      country: "United Kingdom",
+      city: "London",
+      commissionRate: 10,
+      isActive: true,
+      commissionProtected: true,
+    },
+    {
+      name: "StudentCom",
+      type: "ACCOMMODATION" as const,
+      country: "United Kingdom",
+      city: "London",
+      commissionRate: 8,
+      isActive: true,
+      commissionProtected: true,
+    },
+    {
+      name: "Gradcracker",
+      type: "JOB_INTERNSHIP" as const,
+      country: "United Kingdom",
+      city: "London",
+      commissionRate: 15,
+      isActive: true,
+      commissionProtected: true,
+    },
+    {
+      name: "Bright Network",
+      type: "JOB_INTERNSHIP" as const,
+      country: "United Kingdom",
+      city: "London",
+      commissionRate: 12,
+      isActive: true,
+      commissionProtected: true,
+    },
+  ];
+
+  const providerIdByName = new Map<string, string>();
+  for (const provider of providerSeeds) {
+    const existingProvider = await prisma.serviceProvider.findFirst({
+      where: {
+        name: provider.name,
+        type: provider.type,
+      },
+      select: { id: true },
+    });
+
+    if (existingProvider) {
+      providerIdByName.set(provider.name, existingProvider.id);
+      continue;
+    }
+
+    const createdProvider = await prisma.serviceProvider.create({
+      data: {
+        name: provider.name,
+        type: provider.type,
+        country: provider.country,
+        city: provider.city,
+        commissionRate: provider.commissionRate,
+        isActive: provider.isActive,
+        commissionProtected: provider.commissionProtected,
+      },
+      select: { id: true },
+    });
+
+    providerIdByName.set(provider.name, createdProvider.id);
+  }
+
+  const listingSeeds = [
+    {
+      title: "Modern Studio in Central London",
+      providerName: "Unite Students",
+      type: "ACCOMMODATION" as const,
+      city: "London",
+      country: "United Kingdom",
+      price: 1200,
+      currency: "GBP",
+      priceType: "per month",
+      bedrooms: 0,
+      bathrooms: 1,
+      amenities: ["WiFi", "Kitchen", "Security"],
+      isFullyFurnished: true,
+      isBillsIncluded: false,
+      isActive: true,
+      isFeatured: true,
+      images: [],
+      eligibleNationalities: [],
+      eligibleStudyLevels: [],
+    },
+    {
+      title: "Shared Room Near University",
+      providerName: "StudentCom",
+      type: "ACCOMMODATION" as const,
+      city: "London",
+      country: "United Kingdom",
+      price: 750,
+      currency: "GBP",
+      priceType: "per month",
+      bedrooms: 1,
+      bathrooms: 1,
+      amenities: ["WiFi", "Kitchen", "Washing Machine"],
+      isFullyFurnished: true,
+      isBillsIncluded: true,
+      isActive: true,
+      isFeatured: false,
+      images: [],
+      eligibleNationalities: [],
+      eligibleStudyLevels: [],
+    },
+    {
+      title: "Graduate Software Engineer",
+      providerName: "Gradcracker",
+      type: "JOB_INTERNSHIP" as const,
+      city: "London",
+      country: "United Kingdom",
+      salaryMin: 28000,
+      salaryMax: 35000,
+      hoursPerWeek: 40,
+      jobType: "Full Time",
+      jobSector: "Technology",
+      isRemote: false,
+      isActive: true,
+      isFeatured: true,
+      amenities: [],
+      images: [],
+      eligibleNationalities: [],
+      eligibleStudyLevels: [],
+    },
+    {
+      title: "Finance Graduate Scheme",
+      providerName: "Bright Network",
+      type: "JOB_INTERNSHIP" as const,
+      city: "London",
+      country: "United Kingdom",
+      salaryMin: 25000,
+      salaryMax: 30000,
+      hoursPerWeek: 37,
+      jobType: "Graduate Scheme",
+      jobSector: "Finance",
+      isRemote: false,
+      isActive: true,
+      isFeatured: false,
+      amenities: [],
+      images: [],
+      eligibleNationalities: [],
+      eligibleStudyLevels: [],
+    },
+  ];
+
+  for (const listing of listingSeeds) {
+    const providerId = providerIdByName.get(listing.providerName);
+    if (!providerId) continue;
+
+    const existingListing = await prisma.serviceListing.findFirst({
+      where: {
+        providerId,
+        title: listing.title,
+      },
+      select: { id: true },
+    });
+
+    if (existingListing) continue;
+
+    await prisma.serviceListing.create({
+      data: {
+        providerId,
+        type: listing.type,
+        title: listing.title,
+        city: listing.city,
+        country: listing.country,
+        price: "price" in listing ? listing.price : null,
+        currency: "currency" in listing ? listing.currency : "GBP",
+        priceType: "priceType" in listing ? listing.priceType : null,
+        bedrooms: "bedrooms" in listing ? listing.bedrooms : null,
+        bathrooms: "bathrooms" in listing ? listing.bathrooms : null,
+        amenities: listing.amenities,
+        images: listing.images,
+        isFullyFurnished: "isFullyFurnished" in listing ? listing.isFullyFurnished : false,
+        isBillsIncluded: "isBillsIncluded" in listing ? listing.isBillsIncluded : false,
+        jobType: "jobType" in listing ? listing.jobType : null,
+        jobSector: "jobSector" in listing ? listing.jobSector : null,
+        salaryMin: "salaryMin" in listing ? listing.salaryMin : null,
+        salaryMax: "salaryMax" in listing ? listing.salaryMax : null,
+        hoursPerWeek: "hoursPerWeek" in listing ? listing.hoursPerWeek : null,
+        isRemote: "isRemote" in listing ? listing.isRemote : false,
+        eligibleNationalities: listing.eligibleNationalities,
+        eligibleStudyLevels: listing.eligibleStudyLevels,
+        isActive: listing.isActive,
+        isFeatured: listing.isFeatured,
+      },
+    });
+  }
+
+  const pricingSeeds = [
+    { name: "Airport Pickup Heathrow", airport: "Heathrow", amount: 50, currency: "GBP" },
+    { name: "Airport Pickup Gatwick", airport: "Gatwick", amount: 55, currency: "GBP" },
+    { name: "Airport Pickup Manchester", airport: "Manchester", amount: 65, currency: "GBP" },
+    { name: "Airport Pickup Birmingham", airport: "Birmingham", amount: 60, currency: "GBP" },
+    { name: "Airport Pickup Edinburgh", airport: "Edinburgh", amount: 75, currency: "GBP" },
+    { name: "Airport Pickup Toronto Pearson", airport: "Toronto Pearson", amount: 80, currency: "CAD" },
+    { name: "Airport Pickup Vancouver", airport: "Vancouver", amount: 85, currency: "CAD" },
+    { name: "Airport Pickup Sydney", airport: "Sydney", amount: 90, currency: "AUD" },
+    { name: "Airport Pickup Melbourne", airport: "Melbourne", amount: 95, currency: "AUD" },
+  ];
+
+  for (const pricing of pricingSeeds) {
+    const existingPricing = await prisma.servicePricing.findFirst({
+      where: {
+        serviceType: "AIRPORT_PICKUP",
+        OR: [
+          { airport: { equals: pricing.airport, mode: "insensitive" } },
+          { name: { equals: pricing.name, mode: "insensitive" } },
+        ],
+      },
+      select: { id: true },
+    });
+
+    if (existingPricing) continue;
+
+    await prisma.servicePricing.create({
+      data: {
+        serviceType: "AIRPORT_PICKUP",
+        name: pricing.name,
+        airport: pricing.airport,
+        amount: pricing.amount,
+        currency: pricing.currency,
+        isActive: true,
+      },
+    });
+  }
+  console.log("Seeded service providers, listings, and airport pickup pricing.");
+
   const defaultPaymentMethods = [
     { name: "Bank Transfer", type: "BANK" },
     { name: "Cash", type: "CASH" },

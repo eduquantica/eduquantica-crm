@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { Building2 } from "lucide-react"
 
 const links = [
   { href: "/dashboard", label: "Dashboard" },
@@ -17,6 +18,7 @@ const links = [
   { href: "/dashboard/commissions", label: "Commissions" },
   { href: "/dashboard/pl", label: "Profit & Loss" },
   { href: "/dashboard/visa", label: "Visa Tracking" },
+  { href: "/dashboard/student-services", label: "Student Services", icon: Building2 },
   { href: "/dashboard/reports", label: "Reports" },
   { href: "/dashboard/cv-builder", label: "My CV" },
   { href: "/dashboard/settings", label: "Settings" },
@@ -34,12 +36,14 @@ export default function DashboardSidebar() {
       <nav className="flex flex-col gap-1 px-3 py-4">
         {links.map((link) => {
           const active = pathname === link.href || pathname.startsWith(`${link.href}/`)
+          const Icon = link.icon
           return (
             <Link
               key={link.href}
               href={link.href}
-              className={`portal-nav-item ${active ? "portal-nav-item-active" : ""}`}
+              className={`portal-nav-item ${active ? "portal-nav-item-active" : ""} flex items-center gap-2`}
             >
+              {Icon ? <Icon className="h-4 w-4" /> : null}
               {link.label}
             </Link>
           )

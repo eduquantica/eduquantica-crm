@@ -40,10 +40,12 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith("/api/public/")) return NextResponse.next();
   if (pathname.startsWith("/api/cron/")) return NextResponse.next();
   if (pathname.startsWith("/api/mobile-upload/")) return NextResponse.next();
+  if (pathname.startsWith("/api/events/rsvp/")) return NextResponse.next();
 
   // Mobile upload bridge pages are token-secured; do not require session auth
   if (pathname.startsWith("/upload/mobile/")) return NextResponse.next();
   if (pathname.startsWith("/mobile-upload/")) return NextResponse.next();
+  if (pathname.startsWith("/events/rsvp/")) return NextResponse.next();
 
   // Public API routes (no login required)
   if (pathname === "/api/agent/apply") return NextResponse.next();
@@ -118,6 +120,18 @@ export async function middleware(request: NextRequest) {
 
   // ── /dashboard/* ─────────────────────────────────────────────────────────────
   if (pathname.startsWith("/dashboard")) {
+    if (pathname.startsWith("/dashboard/student-services/events")) {
+      const canAccessEvents =
+        isStaffRole(roleName!) ||
+        roleName === "BRANCH_MANAGER" ||
+        roleName === "SUB_AGENT_COUNSELLOR";
+      if (!canAccessEvents) {
+        return NextResponse.redirect(
+          new URL(portalPath(roleName!, subAgentApproved), request.url),
+        );
+      }
+      return NextResponse.next();
+    }
     if (!isStaffRole(roleName!)) {
       // Students and sub-agents don't belong in the dashboard
       return NextResponse.redirect(

@@ -237,6 +237,103 @@ export async function triggerStudyGapRecalculation(): Promise<number> {
   return created;
 }
 
+export async function triggerServiceReferralFollowUps(): Promise<number> {
+  const now = new Date();
+  const followUp7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const followUp30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const followUp60Days = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+
+  const candidates = await db.serviceReferral.findMany({
+    where: {
+      status: { in: ["SENT", "CLICKED", "ENQUIRED", "SHORTLISTED"] },
+      placementConfirmed: false,
+      OR: [
+        {
+          followUpCount: 0,
+          createdAt: { lte: followUp7Days },
+        },
+        {
+          followUpCount: 1,
+          followUpSentAt: { lte: followUp30Days },
+        },
+        {
+          followUpCount: 2,
+          followUpSentAt: { lte: followUp60Days },
+        },
+      ],
+    },
+    include: {
+      student: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          userId: true,
+          assignedCounsellorId: true,
+        },
+      },
+      listing: {
+        select: {
+          id: true,
+          title: true,
+        },
+      },
+    },
+  });
+
+  if (candidates.length === 0) return 0;
+
+  const adminUsers = await db.user.findMany({
+    where: { role: { name: { in: ["ADMIN", "MANAGER"] } } },
+    select: { id: true },
+  });
+
+  let count = 0;
+  for (const referral of candidates) {
+    const nextFollowUpCount = referral.followUpCount + 1;
+    const studentName = `${referral.student.firstName} ${referral.student.lastName}`.trim();
+
+    await db.serviceReferral.update({
+      where: { id: referral.id },
+      data: {
+        followUpCount: { increment: 1 },
+        followUpSentAt: now,
+        adminNote: [
+          referral.adminNote,
+          `Automated follow-up #${nextFollowUpCount} sent on ${now.toISOString()}`,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      },
+    });
+
+    const notifyUserIds = Array.from(
+      new Set(
+        [
+          referral.student.userId,
+          referral.student.assignedCounsellorId,
+          ...adminUsers.map((user) => user.id),
+        ].filter((value): value is string => Boolean(value)),
+      ),
+    );
+
+    await Promise.all(
+      notifyUserIds.map((userId) =>
+        NotificationService.createNotification({
+          userId,
+          type: "SERVICE_REFERRAL_AUTO_FOLLOW_UP",
+          message: `Referral ${referral.referralCode} (${studentName} - ${referral.listing.title}) auto follow-up #${nextFollowUpCount} sent.`,
+          linkUrl: "/dashboard/student-services",
+        }).catch(() => undefined),
+      ),
+    );
+
+    count += 1;
+  }
+
+  return count;
+}
+
 // convenience runner
 export async function runAllTriggers(): Promise<number> {
   const results = await Promise.all([
@@ -245,6 +342,7 @@ export async function runAllTriggers(): Promise<number> {
     triggerFlaggedDocuments(),
     triggerSubAgentPending(),
     triggerStudyGapRecalculation(),
+    triggerServiceReferralFollowUps(),
   ]);
   return results.reduce((a, b) => a + b, 0);
 }

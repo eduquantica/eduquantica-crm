@@ -786,6 +786,8 @@ model Student {
   mockInterviews          MockInterview[]
   chatSessions            ChatSession[]
   feePayments             ApplicationFeePayment[]
+  servicePayments         ServicePayment[]
+  serviceReferrals        ServiceReferral[]
   cvProfile               CvProfile?
   applicationDocuments    ApplicationDocument[]
   documentRequests        DocumentRequest[]
@@ -2783,4 +2785,312 @@ model PasswordResetToken {
   @@index([userId])
   @@index([token])
   @@index([expiresAt])
+}
+
+enum ProviderType {
+  ACCOMMODATION
+  JOB_INTERNSHIP
+  AIRPORT_PICKUP
+  HEALTH_INSURANCE
+  BANK_ACCOUNT
+  SIM_CARD
+  OTHER
+}
+
+model ServiceProvider {
+  id                  String              @id @default(cuid())
+  name                String
+  type                ProviderType
+  logo                String?
+  website             String?
+  email               String?
+  phone               String?
+  city                String?
+  country             String
+  description         String?             @db.Text
+  commissionRate      Float               @default(10)
+  commissionType      String              @default("PERCENTAGE")
+  agreementStart      DateTime?
+  agreementEnd        DateTime?
+  isActive            Boolean             @default(true)
+  contactPerson       String?
+  contactEmail        String?
+  notes               String?             @db.Text
+  agreementSigned     Boolean             @default(false)
+  agreementSignedAt   DateTime?
+  agreementDocUrl     String?
+  commissionProtected Boolean             @default(true)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  listings            ServiceListing[]
+  commissions         ServiceCommission[]
+  referrals           ServiceReferral[]
+}
+
+model ServiceListing {
+  id                    String               @id @default(cuid())
+  providerId            String
+  provider              ServiceProvider      @relation(fields: [providerId], references: [id])
+  type                  ProviderType
+  title                 String
+  description           String?              @db.Text
+  city                  String
+  country               String
+  price                 Float?
+  currency              String               @default("GBP")
+  priceType             String?
+  availableFrom         DateTime?
+  availableTo           DateTime?
+  bedrooms              Int?
+  bathrooms             Int?
+  amenities             String[]
+  images                String[]
+  isFullyFurnished      Boolean              @default(false)
+  isBillsIncluded       Boolean              @default(false)
+  jobTitle              String?
+  jobType               String?
+  jobSector             String?
+  salaryMin             Float?
+  salaryMax             Float?
+  hoursPerWeek          Int?
+  isRemote              Boolean              @default(false)
+  eligibleNationalities String[]
+  eligibleStudyLevels   String[]
+  applicationDeadline   DateTime?
+  isActive              Boolean              @default(true)
+  isFeatured            Boolean              @default(false)
+  viewCount             Int                  @default(0)
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  applications          ServiceApplication[]
+  referrals             ServiceReferral[]
+}
+
+enum ServiceAppStatus {
+  ENQUIRED
+  REFERRED
+  SHORTLISTED
+  OFFERED
+  CONFIRMED
+  REJECTED
+  WITHDRAWN
+}
+
+model ServiceApplication {
+  id                 String             @id @default(cuid())
+  studentId          String
+  listingId          String
+  listing            ServiceListing     @relation(fields: [listingId], references: [id])
+  status             ServiceAppStatus   @default(ENQUIRED)
+  studentNote        String?            @db.Text
+  adminNote          String?            @db.Text
+  placementConfirmed Boolean            @default(false)
+  placementDate      DateTime?
+  commissionEarned   Float?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  commission         ServiceCommission?
+}
+
+enum ServiceCommStatus {
+  PENDING
+  INVOICED
+  PAID
+  CANCELLED
+}
+
+model ServiceCommission {
+  id           String             @id @default(cuid())
+  serviceAppId String             @unique
+  serviceApp   ServiceApplication @relation(fields: [serviceAppId], references: [id])
+  providerId   String
+  provider     ServiceProvider    @relation(fields: [providerId], references: [id])
+  amount       Float
+  currency     String             @default("GBP")
+  rate         Float
+  status       ServiceCommStatus  @default(PENDING)
+  invoicedAt   DateTime?
+  paidAt       DateTime?
+  notes        String?
+  createdAt    DateTime           @default(now())
+}
+
+enum ReferralStatus {
+  SENT
+  CLICKED
+  ENQUIRED
+  SHORTLISTED
+  PLACED
+  REJECTED
+  EXPIRED
+}
+
+model ServiceReferral {
+  id                 String            @id @default(cuid())
+  referralCode       String            @unique
+  studentId          String
+  student            Student           @relation(fields: [studentId], references: [id])
+  listingId          String
+  listing            ServiceListing    @relation(fields: [listingId], references: [id])
+  providerId         String
+  provider           ServiceProvider   @relation(fields: [providerId], references: [id])
+  status             ReferralStatus    @default(SENT)
+  clickedAt          DateTime?
+  studentConfirmed   Boolean           @default(false)
+  studentConfirmedAt DateTime?
+  providerConfirmed  Boolean           @default(false)
+  providerConfirmedAt DateTime?
+  followUpCount      Int               @default(0)
+  followUpSentAt     DateTime?
+  placementConfirmed Boolean           @default(false)
+  placementDate      DateTime?
+  commissionDue      Float?
+  commissionStatus   ServiceCommStatus @default(PENDING)
+  commissionPaidAt   DateTime?
+  adminNote          String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+}
+
+enum ServicePaymentType {
+  AIRPORT_PICKUP
+  ACCOMMODATION_DEPOSIT
+  PRE_DEPARTURE_EVENT
+  OTHER_SERVICE
+}
+
+enum ServicePayStatus {
+  PENDING
+  PROOF_UPLOADED
+  CONFIRMED
+  REJECTED
+  REFUNDED
+  CANCELLED
+}
+
+model ServicePayment {
+  id               String             @id @default(cuid())
+  studentId        String
+  student          Student            @relation(fields: [studentId], references: [id])
+  serviceType      ServicePaymentType
+  referenceId      String
+  description      String
+  amount           Float
+  currency         String             @default("GBP")
+  status           ServicePayStatus   @default(PENDING)
+  paymentMethod    String?
+  paymentProofUrl  String?
+  paymentProofName String?
+  invoiceNumber    String?            @unique
+  invoiceUrl       String?
+  paidAt           DateTime?
+  confirmedBy      String?
+  rejectionReason  String?
+  adminNote        String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+}
+
+model ServicePricing {
+  id          String             @id @default(cuid())
+  serviceType ServicePaymentType
+  name        String
+  airport     String?
+  amount      Float
+  currency    String             @default("GBP")
+  isActive    Boolean            @default(true)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+}
+
+enum PickupStatus {
+  PENDING
+  CONFIRMED
+  ASSIGNED
+  COMPLETED
+  CANCELLED
+}
+
+model AirportPickupBooking {
+  id                    String       @id @default(cuid())
+  studentId             String
+  applicationId         String?
+  destinationCity       String
+  destinationCountry    String
+  airport               String
+  terminal              String?
+  flightNumber          String
+  departureCountry      String
+  departureCity         String
+  departureDate         DateTime
+  departureTime         String
+  arrivalDate           DateTime
+  arrivalTime           String
+  ticketConfirmationUrl String?
+  ticketFileName        String?
+  passengerCount        Int          @default(1)
+  specialRequirements   String?      @db.Text
+  status                PickupStatus @default(PENDING)
+  confirmedAt           DateTime?
+  confirmedBy           String?
+  adminNote             String?      @db.Text
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+  COMPLETED
+}
+
+model PreDepartureEvent {
+  id              String            @id @default(cuid())
+  title           String
+  description     String?           @db.Text
+  eventDate       DateTime
+  eventTime       String
+  location        String
+  city            String
+  country         String
+  venueAddress    String?
+  onlineLink      String?
+  isOnline        Boolean           @default(false)
+  organiserUserId String
+  targetCountry   String
+  status          EventStatus       @default(DRAFT)
+  maxAttendees    Int?
+  notes           String?           @db.Text
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  invitations     EventInvitation[]
+  attendees       EventAttendee[]
+}
+
+enum RsvpStatus {
+  PENDING
+  ATTENDING
+  NOT_ATTENDING
+  MAYBE
+}
+
+model EventInvitation {
+  id          String           @id @default(cuid())
+  eventId     String
+  event       PreDepartureEvent @relation(fields: [eventId], references: [id])
+  studentId   String
+  emailSentAt DateTime?
+  rsvpStatus  RsvpStatus       @default(PENDING)
+  rsvpAt      DateTime?
+  createdAt   DateTime         @default(now())
+}
+
+model EventAttendee {
+  id          String           @id @default(cuid())
+  eventId     String
+  event       PreDepartureEvent @relation(fields: [eventId], references: [id])
+  studentId   String
+  checkedInAt DateTime?
+  createdAt   DateTime         @default(now())
 }

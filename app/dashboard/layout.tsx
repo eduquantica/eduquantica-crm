@@ -12,7 +12,7 @@ export default async function DashboardLayout({
 }) {
   const session = await getServerSession(authOptions)
   if (!session) redirect('/login')
-  const allowedRoles = ['ADMIN', 'MANAGER', 'COUNSELLOR']
+  const allowedRoles = ['ADMIN', 'MANAGER', 'COUNSELLOR', 'BRANCH_MANAGER', 'SUB_AGENT_COUNSELLOR']
   const role = session.user.roleName
   if (!allowedRoles.includes(role)) {
     redirect('/login')

@@ -9,6 +9,7 @@ const links = [
   { href: "/student/dashboard", label: "Home", icon: Home },
   { href: "/student/profile", label: "My Profile", icon: User },
   { href: "/student/courses", label: "Course Search", icon: Search },
+  { href: "/student/services", label: "Services", icon: Home },
   { href: "/student/wishlist", label: "My Wishlist", icon: Heart },
   { href: "/student/applications", label: "My Applications", icon: FileText },
   { href: "/student/documents", label: "Documents", icon: Folder },
