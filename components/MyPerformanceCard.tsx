@@ -33,7 +33,10 @@ export default function MyPerformanceCard({ endpoint }: { endpoint: "/api/dashbo
     setLoading(true);
     setError(null);
     fetch(endpoint, { cache: "no-store" })
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to load performance");
+        return res.json();
+      })
       .then((json) => {
         setPayload(json.data || null);
         setLoading(false);

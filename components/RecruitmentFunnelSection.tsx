@@ -98,7 +98,10 @@ export default function RecruitmentFunnelSection({
     setLoading(true);
     setError(null);
     fetch(`${endpoint}?period=${period}`, { cache: "no-store" })
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to load funnel");
+        return res.json();
+      })
       .then((json) => {
         setData(json.data || null);
         setLoading(false);
@@ -133,8 +136,8 @@ export default function RecruitmentFunnelSection({
         periodBValue,
       });
       const res = await fetch(`${endpoint}?${query.toString()}`, { cache: "no-store" });
+      if (!res.ok) throw new Error("Failed to compare periods");
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to compare periods");
       setData(json.data || null);
     } catch {
       setError("Failed to compare periods");

@@ -73,8 +73,8 @@ export default function InterviewOverviewSection({ endpoint, emptyMessage }: Pro
       setError(null);
       try {
         const res = await fetch(endpoint, { cache: "no-store" });
+        if (!res.ok) throw new Error("Failed to load interview overview");
         const json = await res.json();
-        if (!res.ok) throw new Error(json.error || "Failed to load interview overview");
         if (!active) return;
         setData(json.data || null);
       } catch (err) {
