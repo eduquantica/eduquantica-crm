@@ -38,8 +38,15 @@ export default function LoginPage() {
       if (cancelled) return;
 
       const user = (session?.user ?? {}) as SessionUserExtras;
+      console.log("[LOGIN] Initial session check:", {
+        hasSession: !!session?.user,
+        email: session?.user?.email,
+        roleName: user.roleName,
+      });
+
       if (session?.user && user.roleName) {
         const destination = getPortalPath(user.roleName, user.subAgentApproved);
+        console.log("[LOGIN] Redirecting to:", destination);
         router.replace(destination);
         router.refresh();
       }
@@ -56,10 +63,17 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      console.log("[LOGIN] Submitting credentials:", { email });
       const res = await signIn("credentials", {
         email,
         password,
         redirect: false,
+      });
+
+      console.log("[LOGIN] SignIn response:", {
+        ok: res?.ok,
+        error: res?.error,
+        status: res?.status,
       });
 
       if (!res || res.error) {
@@ -71,16 +85,27 @@ export default function LoginPage() {
       const session = await getSession();
       const user = (session?.user ?? {}) as SessionUserExtras;
 
+      console.log("[LOGIN] Post-signin session check:", {
+        hasSession: !!session?.user,
+        email: session?.user?.email,
+        roleName: user.roleName,
+      });
+
       if (!session?.user || !user.roleName) {
+        console.error("[LOGIN] Session missing or no roleName:", {
+          hasSession: !!session?.user,
+          roleName: user.roleName,
+        });
         setError("Sign-in failed. Please try again.");
         return;
       }
 
       const destination = getPortalPath(user.roleName, user.subAgentApproved);
+      console.log("[LOGIN] Redirecting to:", destination);
       router.replace(destination);
       router.refresh();
     } catch (err) {
-      console.error(err);
+      console.error("[LOGIN] Catch error:", err);
       setError("An unexpected error occurred. Please try again.");
     } finally {
       setLoading(false);
