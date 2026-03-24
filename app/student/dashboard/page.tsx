@@ -63,78 +63,92 @@ function formatLastActive(date: Date | null) {
 }
 
 export default async function StudentDashboardPage() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id || session.user.roleName !== "STUDENT") {
-    redirect("/login");
-  }
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id || session.user.roleName !== "STUDENT") {
+      console.error("[DASHBOARD] Invalid session:", {
+        hasSession: !!session,
+        userId: session?.user?.id,
+        roleName: session?.user?.roleName,
+      });
+      redirect("/login");
+    }
 
-  const student = await db.student.findUnique({
-    where: { userId: session.user.id },
-    select: {
-      id: true,
-      firstName: true,
-      nationality: true,
-      dateOfBirth: true,
-      country: true,
-      onboardingCompleted: true,
-      assignedCounsellor: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          phone: true,
+    console.log("[DASHBOARD] Fetching student profile for userId:", session.user.id);
+
+    const student = await db.student.findUnique({
+      where: { userId: session.user.id },
+      select: {
+        id: true,
+        firstName: true,
+        nationality: true,
+        dateOfBirth: true,
+        country: true,
+        onboardingCompleted: true,
+        assignedCounsellor: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+          },
         },
-      },
-      referredBySubAgent: {
-        select: {
-          agencyName: true,
-          businessEmail: true,
-          phone: true,
+        referredBySubAgent: {
+          select: {
+            agencyName: true,
+            businessEmail: true,
+            phone: true,
+          },
         },
-      },
-      applications: {
-        orderBy: { createdAt: "desc" },
-        take: 3,
-        select: {
-          id: true,
-          status: true,
-          createdAt: true,
-          course: {
-            select: {
-              name: true,
-              university: {
-                select: {
-                  name: true,
-                  country: true,
+        applications: {
+          orderBy: { createdAt: "desc" },
+          take: 3,
+          select: {
+            id: true,
+            status: true,
+            createdAt: true,
+            course: {
+              select: {
+                name: true,
+                university: {
+                  select: {
+                    name: true,
+                    country: true,
+                  },
                 },
               },
             },
           },
         },
-      },
-      preferences: {
-        select: {
-          preferredDestinations: true,
-          preferredLevels: true,
-          preferredFields: true,
+        preferences: {
+          select: {
+            preferredDestinations: true,
+            preferredLevels: true,
+            preferredFields: true,
+          },
         },
-      },
-      academicProfile: {
-        select: {
-          _count: {
-            select: {
-              qualifications: true,
+        academicProfile: {
+          select: {
+            _count: {
+              select: {
+                qualifications: true,
+              },
             },
           },
         },
+        recentlyViewedCourses: true,
       },
-      recentlyViewedCourses: true,
-    },
-  });
+    });
 
-  if (!student) {
-    redirect("/login");
-  }
+    if (!student) {
+      console.error("[DASHBOARD] Student profile not found for userId:", session.user.id);
+      redirect("/student/onboarding");
+    }
+
+    console.log("[DASHBOARD] Student profile loaded:", {
+      studentId: student.id,
+      firstName: student.firstName,
+    });
 
   const [completion, latestChecklist, counsellorActivity, eduviStarted] = await Promise.all([
     calculateProfileCompletionDetails(student.id),
@@ -448,4 +462,11 @@ export default async function StudentDashboardPage() {
       ) : null}
     </main>
   );
+  } catch (error) {
+    console.error("[DASHBOARD] Error rendering dashboard:", {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    throw error;
+  }
 }
