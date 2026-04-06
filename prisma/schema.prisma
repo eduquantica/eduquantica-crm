@@ -2717,6 +2717,7 @@ model StudentInvoice {
   paymentMethod         String?
   paidAt                DateTime?
   paidBy                String?
+  confirmedBy           String?
   receiptUrl            String?
   receiptFileName       String?
   notes                 String?

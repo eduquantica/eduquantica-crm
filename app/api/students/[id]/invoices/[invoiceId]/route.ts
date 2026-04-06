@@ -63,6 +63,7 @@ export async function PATCH(
       status,
       paidAt,
       paidBy,
+      confirmedBy,
     } = body;
 
     if (action === "CONFIRM_PAYMENT" || action === "REJECT_PAYMENT") {
@@ -82,11 +83,13 @@ export async function PATCH(
               status: "PAID",
               paidAt: new Date(),
               paidBy: session.user.id,
+              confirmedBy: session.user.id,
             }
           : {
               status: "DUE",
               paidAt: null,
               paidBy: null,
+              confirmedBy: null,
               notes: `Payment rejected: ${String(reason).trim()}`,
             },
       });
@@ -143,6 +146,7 @@ export async function PATCH(
         status: status !== undefined ? status : undefined,
         paidAt: paidAt ? new Date(paidAt) : undefined,
         paidBy: paidBy !== undefined ? paidBy : undefined,
+        confirmedBy: confirmedBy !== undefined ? confirmedBy : undefined,
       },
     });
 
