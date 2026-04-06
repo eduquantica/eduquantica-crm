@@ -89,9 +89,9 @@ function InvoiceDetailModal({
   onClose,
   onUpdated,
 }: InvoiceDetailModalProps) {
-  const [uploading, setUploading] = useState(false);
-  const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [markingPaid, setMarkingPaid] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectingPayment, setRejectingPayment] = useState(false);
 
   const sym = getCurrencySymbol(invoice.currency);
 
@@ -103,44 +103,56 @@ function InvoiceDetailModal({
   const handleMarkPaid = async () => {
     setMarkingPaid(true);
     try {
-      let receiptUrl: string | null = null;
-      let receiptFileName: string | null = null;
-
-      if (receiptFile) {
-        setUploading(true);
-        const formData = new FormData();
-        formData.append("files", receiptFile);
-        const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
-        if (!uploadRes.ok) throw new Error("Failed to upload receipt");
-        const uploadJson = await uploadRes.json();
-        receiptUrl = uploadJson.urls?.[0] ?? null;
-        receiptFileName = receiptFile.name;
-        setUploading(false);
-      }
-
       const res = await fetch(
-        `/api/students/${studentId}/invoices/${invoice.id}/receipt`,
+        `/api/students/${studentId}/invoices/${invoice.id}`,
         {
-          method: "POST",
+          method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            receiptUrl,
-            receiptFileName,
-            paidAt: new Date().toISOString(),
-          }),
+          body: JSON.stringify({ action: "CONFIRM_PAYMENT" }),
         }
       );
 
-      if (!res.ok) throw new Error("Failed to mark invoice as paid");
+      if (!res.ok) throw new Error("Failed to confirm payment");
 
-      toast.success("Invoice marked as paid");
+      toast.success("Payment confirmed");
       onUpdated();
       onClose();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "An error occurred");
     } finally {
       setMarkingPaid(false);
-      setUploading(false);
+    }
+  };
+
+  const handleRejectPayment = async () => {
+    if (!rejectReason.trim()) {
+      toast.error("Rejection reason is required");
+      return;
+    }
+
+    setRejectingPayment(true);
+    try {
+      const res = await fetch(
+        `/api/students/${studentId}/invoices/${invoice.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "REJECT_PAYMENT",
+            reason: rejectReason.trim(),
+          }),
+        }
+      );
+
+      if (!res.ok) throw new Error("Failed to reject payment");
+
+      toast.success("Payment rejected");
+      onUpdated();
+      onClose();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "An error occurred");
+    } finally {
+      setRejectingPayment(false);
     }
   };
 
@@ -171,7 +183,9 @@ function InvoiceDetailModal({
               className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${
                 invoice.status === "PAID"
                   ? "bg-emerald-100 text-emerald-700"
-                  : "bg-red-100 text-red-700"
+                  : invoice.status === "PROOF_UPLOADED"
+                    ? "bg-amber-100 text-amber-700"
+                    : "bg-red-100 text-red-700"
               }`}
             >
               {invoice.status}
@@ -213,16 +227,30 @@ function InvoiceDetailModal({
               <p><span className="font-medium">Paid:</span> {new Date(invoice.paidAt).toLocaleDateString()}</p>
             )}
             {invoice.receiptFileName && (
-              <p>
-                <span className="font-medium">Receipt:</span>{" "}
-                {invoice.receiptUrl ? (
-                  <a href={invoice.receiptUrl} className="text-blue-600 underline" target="_blank" rel="noreferrer">
-                    {invoice.receiptFileName}
-                  </a>
-                ) : (
-                  invoice.receiptFileName
+              <div>
+                <p>
+                  <span className="font-medium">Receipt:</span> {invoice.receiptFileName}
+                </p>
+                {invoice.receiptUrl && (
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    <a
+                      href={invoice.receiptUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                    >
+                      View Receipt
+                    </a>
+                    <a
+                      href={invoice.receiptUrl}
+                      download={invoice.receiptFileName}
+                      className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                    >
+                      Download Receipt
+                    </a>
+                  </div>
                 )}
-              </p>
+              </div>
             )}
             {invoice.notes && (
               <p><span className="font-medium">Notes:</span> {invoice.notes}</p>
@@ -230,30 +258,40 @@ function InvoiceDetailModal({
           </div>
         )}
 
-        {/* Mark as Paid (staff only, only if DUE) */}
-        {canMarkPaid && invoice.status === "DUE" && (
+        {/* Confirm/Reject Payment (Admin/Manager/Counsellor) */}
+        {canMarkPaid && invoice.status === "PROOF_UPLOADED" && (
           <div className="px-6 py-4 border-t border-slate-200 space-y-3">
-            <p className="text-sm font-semibold text-slate-800">Mark as Paid</p>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-slate-500">Attach receipt (optional)</span>
-              <input
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png"
-                onChange={(e) => setReceiptFile(e.currentTarget.files?.[0] ?? null)}
-                className="text-sm"
-              />
-            </label>
-            {receiptFile && (
-              <p className="text-xs text-slate-500">Selected: {receiptFile.name}</p>
-            )}
+            <p className="text-sm font-semibold text-slate-800">Verify Uploaded Receipt</p>
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+              Receipt uploaded. Awaiting staff confirmation.
+            </div>
+
             <button
               onClick={handleMarkPaid}
-              disabled={markingPaid || uploading}
+              disabled={markingPaid}
               className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
             >
               <Check className="w-4 h-4" />
-              {markingPaid ? (uploading ? "Uploading..." : "Saving...") : "Mark as Paid"}
+              {markingPaid ? "Saving..." : "Confirm Payment"}
             </button>
+
+            <div className="space-y-2 rounded-lg border border-rose-200 bg-rose-50 p-3">
+              <label className="block text-xs font-medium text-rose-700">Rejection Reason</label>
+              <textarea
+                value={rejectReason}
+                onChange={(event) => setRejectReason(event.target.value)}
+                rows={3}
+                className="w-full rounded border border-rose-300 px-3 py-2 text-sm"
+                placeholder="Explain why this receipt is being rejected"
+              />
+              <button
+                onClick={handleRejectPayment}
+                disabled={rejectingPayment}
+                className="w-full rounded-lg border border-rose-300 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+              >
+                {rejectingPayment ? "Saving..." : "Reject Payment"}
+              </button>
+            </div>
           </div>
         )}
 
@@ -316,25 +354,29 @@ export default function StudentPaymentsTab({
   const {
     data: invoices = [],
     isLoading: invoicesLoading,
+    error: invoicesError,
     refetch: refetchInvoices,
-  } = useQuery({
+  } = useQuery<StudentInvoice[]>({
     queryKey: ["student-invoices", studentId],
     queryFn: async () => {
       const res = await fetch(`/api/students/${studentId}/invoices`);
       if (!res.ok) throw new Error("Failed to fetch invoices");
       const json = await res.json();
-      return json.data || [];
+      return Array.isArray(json.data) ? json.data : [];
     },
   });
 
   // Fetch payment methods
-  const { data: paymentMethods = [] } = useQuery<PaymentMethod[]>({
+  const {
+    data: paymentMethods = [],
+    error: paymentMethodsError,
+  } = useQuery<PaymentMethod[]>({
     queryKey: ["payment-methods"],
     queryFn: async () => {
       const res = await fetch("/api/admin/payment-methods");
       if (!res.ok) throw new Error("Failed to fetch payment methods");
       const json = await res.json();
-      return json.data || [];
+      return Array.isArray(json.data) ? json.data : [];
     },
   });
 
@@ -373,6 +415,8 @@ export default function StudentPaymentsTab({
   const canDeleteInvoices = [
     "ADMIN", "MANAGER", "SUB_AGENT", "BRANCH_MANAGER",
   ].includes(currentUserRole);
+
+  const canConfirmOrRejectPayments = ["ADMIN", "MANAGER", "COUNSELLOR"].includes(currentUserRole);
 
   const resetForm = () => {
     setFileOpeningCharge(false);
@@ -523,7 +567,7 @@ export default function StudentPaymentsTab({
           invoice={viewingInvoice}
           studentId={studentId}
           paymentMethods={paymentMethods}
-          canMarkPaid={canCreateEditInvoices}
+          canMarkPaid={canConfirmOrRejectPayments}
           onClose={() => setViewingInvoice(null)}
           onUpdated={refetchInvoices}
         />
@@ -939,6 +983,18 @@ export default function StudentPaymentsTab({
       <div className="rounded-lg border border-slate-200 bg-white p-6">
         <h3 className="text-lg font-semibold text-slate-900 mb-4">Invoices</h3>
 
+        {invoicesError && (
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+            Failed to load some payment data. Showing available invoice state.
+          </div>
+        )}
+
+        {paymentMethodsError && canCreateEditInvoices && (
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+            Payment methods could not be loaded. You can still view existing invoices.
+          </div>
+        )}
+
         {invoicesLoading ? (
           <div className="text-center py-8 text-sm text-slate-500">Loading...</div>
         ) : invoices.length === 0 ? (
@@ -975,7 +1031,9 @@ export default function StudentPaymentsTab({
                         className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${
                           invoice.status === "PAID"
                             ? "bg-emerald-100 text-emerald-700"
-                            : "bg-red-100 text-red-700"
+                            : invoice.status === "PROOF_UPLOADED"
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-red-100 text-red-700"
                         }`}
                       >
                         {invoice.status}
@@ -989,6 +1047,17 @@ export default function StudentPaymentsTab({
                         <Eye className="w-4 h-4" />
                         View
                       </button>
+                      {invoice.receiptUrl && (
+                        <a
+                          href={invoice.receiptUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 rounded px-2 py-1 text-slate-600 hover:bg-slate-100 text-xs"
+                        >
+                          <Eye className="w-4 h-4" />
+                          View Receipt
+                        </a>
+                      )}
                       {canCreateEditInvoices && invoice.status !== "PAID" && (
                         <button
                           onClick={() => {

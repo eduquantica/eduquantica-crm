@@ -5,7 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { readLatestAction } from "@/lib/application-finance";
 import { scanFinancialDoc } from "@/lib/mindee";
-import { parseDurationMonths, resolveFinancialRequirement } from "@/lib/financial-requirements";
+import { parseDurationMonths, resolveFinancialRequirement, resolveVisaLivingExpenseMonths } from "@/lib/financial-requirements";
 import { maskAccountNumber, verifyBankStatement } from "@/lib/bank-statement-verification";
 import { NotificationService } from "@/lib/notifications";
 
@@ -129,7 +129,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const remainingTuition = Math.max(courseFee - scholarshipFinal - depositPaid, 0);
 
     const activeRule = resolveFinancialRequirement(application.university.country);
-    const durationMonths = Math.max(parseDurationMonths(application.course.duration), 1);
+    const courseDurationMonths = Math.max(parseDurationMonths(application.course.duration), 1);
+    const durationMonths = resolveVisaLivingExpenseMonths(application.university.country, courseDurationMonths);
     const livingExpenses = activeRule.monthlyLivingCost * durationMonths;
     const totalToShowInBank = remainingTuition + livingExpenses;
 

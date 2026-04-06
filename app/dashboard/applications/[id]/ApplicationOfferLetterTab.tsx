@@ -42,7 +42,14 @@ export default function ApplicationOfferLetterTab({ applicationId, studentId, on
       if (!res.ok) throw new Error(json.error || "Failed to save offer letter");
 
       setOcrInfo(json.data?.ocr || null);
-      toast.success(uploadJson.message ? `Offer letter uploaded. ${uploadJson.message}` : "Offer letter uploaded and OCR extracted.");
+      if (json.data?.autoExtracted) {
+        toast.success("Offer letter scanned. Figures pre-filled. Please verify before proceeding.");
+      } else {
+        toast.error("Could not extract automatically. Please enter figures manually.");
+      }
+      if (uploadJson.message) {
+        toast.success(uploadJson.message);
+      }
       onUploaded?.();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to upload offer letter");

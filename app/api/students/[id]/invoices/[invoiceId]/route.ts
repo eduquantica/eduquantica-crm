@@ -2,6 +2,7 @@ import { NextResponse, NextRequest } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { NotificationService } from "@/lib/notifications";
 
 export async function PATCH(
   request: NextRequest,
@@ -18,8 +19,28 @@ export async function PATCH(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    const invoiceRecord = await db.studentInvoice.findUnique({
+      where: { id: params.invoiceId },
+      include: {
+        student: {
+          select: {
+            id: true,
+            userId: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+
+    if (!invoiceRecord || invoiceRecord.studentId !== params.id) {
+      return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
+    }
+
     const body = await request.json();
     const {
+      action,
+      reason,
       fileOpeningCharge,
       serviceCharge,
       serviceChargeType,
@@ -43,6 +64,46 @@ export async function PATCH(
       paidAt,
       paidBy,
     } = body;
+
+    if (action === "CONFIRM_PAYMENT" || action === "REJECT_PAYMENT") {
+      const canConfirmOrReject = ["ADMIN", "MANAGER", "COUNSELLOR"].includes(role);
+      if (!canConfirmOrReject) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+
+      if (action === "REJECT_PAYMENT" && !String(reason || "").trim()) {
+        return NextResponse.json({ error: "Rejection reason is required" }, { status: 400 });
+      }
+
+      const invoice = await db.studentInvoice.update({
+        where: { id: params.invoiceId },
+        data: action === "CONFIRM_PAYMENT"
+          ? {
+              status: "PAID",
+              paidAt: new Date(),
+              paidBy: session.user.id,
+            }
+          : {
+              status: "DUE",
+              paidAt: null,
+              paidBy: null,
+              notes: `Payment rejected: ${String(reason).trim()}`,
+            },
+      });
+
+      if (invoiceRecord.student.userId) {
+        await NotificationService.createNotification({
+          userId: invoiceRecord.student.userId,
+          type: action === "CONFIRM_PAYMENT" ? "INVOICE_PAYMENT_CONFIRMED" : "INVOICE_PAYMENT_REJECTED",
+          message: action === "CONFIRM_PAYMENT"
+            ? `Your payment for ${invoiceRecord.invoiceNumber} has been confirmed. Thank you.`
+            : `Your receipt for ${invoiceRecord.invoiceNumber} was rejected. Please review and re-upload.`,
+          linkUrl: "/student/payments",
+        });
+      }
+
+      return NextResponse.json({ data: invoice });
+    }
 
     // Calculate total
     let totalAmount = 0;

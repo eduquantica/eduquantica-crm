@@ -39,8 +39,13 @@ export type BankStatementChecks = {
     status: "PASS" | "FAIL" | "CANNOT_CONFIRM" | "NOT_APPLICABLE";
     details: string;
     minBalanceInWindow: number | null;
+    firstRequiredDate: string | null;
     windowStart: string | null;
     windowEnd: string | null;
+    currentDayCount: number;
+    remainingDays: number;
+    droppedBelowDate: string | null;
+    droppedBelowAmount: number | null;
   };
 };
 
@@ -119,8 +124,13 @@ function evaluateUk28DayRule(args: {
       status: "CANNOT_CONFIRM",
       details: "Statement date missing.",
       minBalanceInWindow: null,
+      firstRequiredDate: null,
       windowStart: null,
       windowEnd: null,
+      currentDayCount: 0,
+      remainingDays: 28,
+      droppedBelowDate: null,
+      droppedBelowAmount: null,
     };
   }
 
@@ -129,8 +139,13 @@ function evaluateUk28DayRule(args: {
       status: "CANNOT_CONFIRM",
       details: "Opening balance missing.",
       minBalanceInWindow: null,
+      firstRequiredDate: null,
       windowStart: formatISODate(new Date(statementDate.getTime() - 27 * 24 * 60 * 60 * 1000)),
       windowEnd: formatISODate(statementDate),
+      currentDayCount: 0,
+      remainingDays: 28,
+      droppedBelowDate: null,
+      droppedBelowAmount: null,
     };
   }
 
@@ -148,20 +163,13 @@ function evaluateUk28DayRule(args: {
       status: "CANNOT_CONFIRM",
       details: "No dated transactions extracted.",
       minBalanceInWindow: null,
+      firstRequiredDate: null,
       windowStart: formatISODate(new Date(statementDate.getTime() - 27 * 24 * 60 * 60 * 1000)),
       windowEnd: formatISODate(statementDate),
-    };
-  }
-
-  const periodStart = datedTx[0].parsedDate!;
-  const coverageDays = dateDiffDays(statementDate, periodStart) + 1;
-  if (coverageDays < 28) {
-    return {
-      status: "CANNOT_CONFIRM",
-      details: `Only ${coverageDays} days of transaction coverage available.`,
-      minBalanceInWindow: null,
-      windowStart: formatISODate(new Date(statementDate.getTime() - 27 * 24 * 60 * 60 * 1000)),
-      windowEnd: formatISODate(statementDate),
+      currentDayCount: 0,
+      remainingDays: 28,
+      droppedBelowDate: null,
+      droppedBelowAmount: null,
     };
   }
 
@@ -173,7 +181,7 @@ function evaluateUk28DayRule(args: {
 
   let runningBalance = openingBalance;
   const endDate = new Date(statementDate);
-  const startDate = new Date(periodStart);
+  const startDate = new Date(datedTx[0].parsedDate!);
   const balanceByDay = new Map<string, number>();
 
   for (let cursor = new Date(startDate); cursor <= endDate; cursor.setDate(cursor.getDate() + 1)) {
@@ -182,43 +190,97 @@ function evaluateUk28DayRule(args: {
     balanceByDay.set(key, runningBalance);
   }
 
-  const windowStartDate = new Date(statementDate);
-  windowStartDate.setDate(windowStartDate.getDate() - 27);
+  let firstRequiredDate: Date | null = null;
+  for (let cursor = new Date(startDate); cursor <= endDate; cursor.setDate(cursor.getDate() + 1)) {
+    const key = cursor.toISOString().slice(0, 10);
+    const value = balanceByDay.get(key);
+    if (typeof value === "number" && value >= requiredAmount) {
+      firstRequiredDate = new Date(cursor);
+      break;
+    }
+  }
+
+  if (!firstRequiredDate) {
+    return {
+      status: "FAIL",
+      details: `❌ 28-day rule FAILED\nBalance never reached the required amount of ${requiredAmount.toLocaleString()} in this statement period. Please provide a new statement showing 28 consecutive days above the required amount.`,
+      minBalanceInWindow: null,
+      firstRequiredDate: null,
+      windowStart: null,
+      windowEnd: null,
+      currentDayCount: 0,
+      remainingDays: 28,
+      droppedBelowDate: null,
+      droppedBelowAmount: null,
+    };
+  }
+
+  const requiredWindowEnd = new Date(firstRequiredDate);
+  requiredWindowEnd.setDate(requiredWindowEnd.getDate() + 27);
+
+  const currentDayCount = Math.max(1, dateDiffDays(endDate, firstRequiredDate) + 1);
+  if (requiredWindowEnd.getTime() > endDate.getTime()) {
+    const remainingDays = Math.max(0, 28 - currentDayCount);
+    return {
+      status: "CANNOT_CONFIRM",
+      details: `⏳ 28-day period in progress\nRequired amount present since ${formatISODate(firstRequiredDate)}.\n${currentDayCount} days completed, ${remainingDays} days remaining.\nPlease upload a new statement after ${formatISODate(requiredWindowEnd)}.`,
+      minBalanceInWindow: null,
+      firstRequiredDate: formatISODate(firstRequiredDate),
+      windowStart: formatISODate(firstRequiredDate),
+      windowEnd: formatISODate(requiredWindowEnd),
+      currentDayCount,
+      remainingDays,
+      droppedBelowDate: null,
+      droppedBelowAmount: null,
+    };
+  }
 
   let minBalance: number | null = null;
-  let droppedBelow = false;
-  for (let cursor = new Date(windowStartDate); cursor <= endDate; cursor.setDate(cursor.getDate() + 1)) {
+  for (let cursor = new Date(firstRequiredDate); cursor <= requiredWindowEnd; cursor.setDate(cursor.getDate() + 1)) {
     const key = cursor.toISOString().slice(0, 10);
     const value = balanceByDay.get(key);
     if (typeof value !== "number") {
       return {
         status: "CANNOT_CONFIRM",
-        details: "Daily balance coverage is incomplete for the last 28 days.",
+        details: "Daily balance coverage is incomplete in the required 28-day period.",
         minBalanceInWindow: null,
-        windowStart: formatISODate(windowStartDate),
-        windowEnd: formatISODate(statementDate),
+        firstRequiredDate: formatISODate(firstRequiredDate),
+        windowStart: formatISODate(firstRequiredDate),
+        windowEnd: formatISODate(requiredWindowEnd),
+        currentDayCount,
+        remainingDays: 0,
+        droppedBelowDate: null,
+        droppedBelowAmount: null,
       };
     }
     minBalance = minBalance === null ? value : Math.min(minBalance, value);
-    if (value < requiredAmount) droppedBelow = true;
-  }
-
-  if (droppedBelow) {
-    return {
-      status: "FAIL",
-      details: "Balance dropped below required amount within the 28-day window.",
-      minBalanceInWindow: minBalance,
-      windowStart: formatISODate(windowStartDate),
-      windowEnd: formatISODate(statementDate),
-    };
+    if (value < requiredAmount) {
+      return {
+        status: "FAIL",
+        details: `❌ 28-day rule FAILED\nBalance dropped below ${requiredAmount.toLocaleString()} on ${key}.\nThe amount dropped to ${value.toLocaleString()}.\nPlease provide a new statement showing 28 consecutive days above ${requiredAmount.toLocaleString()}.`,
+        minBalanceInWindow: minBalance,
+        firstRequiredDate: formatISODate(firstRequiredDate),
+        windowStart: formatISODate(firstRequiredDate),
+        windowEnd: formatISODate(requiredWindowEnd),
+        currentDayCount: Math.max(1, dateDiffDays(new Date(key), firstRequiredDate) + 1),
+        remainingDays: 0,
+        droppedBelowDate: key,
+        droppedBelowAmount: value,
+      };
+    }
   }
 
   return {
     status: "PASS",
-    details: "Required amount appears maintained for 28 consecutive days.",
+    details: `✅ 28-day rule CONFIRMED\n${Math.round(requiredAmount).toLocaleString()} held continuously from ${formatISODate(firstRequiredDate)} to ${formatISODate(requiredWindowEnd)} - 28 days.\nThis bank account meets UK visa requirements.`,
     minBalanceInWindow: minBalance,
-    windowStart: formatISODate(windowStartDate),
-    windowEnd: formatISODate(statementDate),
+    firstRequiredDate: formatISODate(firstRequiredDate),
+    windowStart: formatISODate(firstRequiredDate),
+    windowEnd: formatISODate(requiredWindowEnd),
+    currentDayCount: 28,
+    remainingDays: 0,
+    droppedBelowDate: null,
+    droppedBelowAmount: null,
   };
 }
 
@@ -345,8 +407,13 @@ export function verifyBankStatement(args: VerifyArgs): {
         status: "NOT_APPLICABLE" as const,
         details: "28-day rule applies to UK only.",
         minBalanceInWindow: null,
+        firstRequiredDate: null,
         windowStart: null,
         windowEnd: null,
+        currentDayCount: 0,
+        remainingDays: 0,
+        droppedBelowDate: null,
+        droppedBelowAmount: null,
       };
 
   const checks: BankStatementChecks = {
@@ -389,7 +456,7 @@ export function verifyBankStatement(args: VerifyArgs): {
 
   if (countryCode === "UK" && ukRule.status === "CANNOT_CONFIRM") {
     const outcome: BankStatementOutcome = "AMBER";
-    const message = "Balance is sufficient but 28-day rule could not be confirmed. Please upload an older statement or a bank confirmation letter showing funds held for 28 days.";
+    const message = ukRule.details;
     return { checks, outcome, message };
   }
 

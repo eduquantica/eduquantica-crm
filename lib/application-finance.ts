@@ -4,6 +4,10 @@ export type OfferLetterExtracted = {
   courseFee: number | null;
   scholarship: number | null;
   currency: string | null;
+  depositRequired: number | null;
+  courseStartDate: string | null;
+  extractionStatus?: "SUCCESS" | "FAILED";
+  extractionMessage?: string;
   extractedText: string;
   confidence: number | null;
 };

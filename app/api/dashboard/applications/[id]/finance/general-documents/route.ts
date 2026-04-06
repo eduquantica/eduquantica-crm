@@ -20,6 +20,7 @@ const payloadSchema = z.object({
     "SPONSOR_ID_DOCUMENT",
     "SPONSORSHIP_DECLARATION_LETTER",
     "SPONSORSHIP_CONFIRMATION_LETTER",
+    "SCHOLARSHIP_LETTER",
   ]),
   fileName: z.string().min(1),
   fileUrl: z.string().min(1),
@@ -67,6 +68,7 @@ const DOC_TYPE_BY_KEY: Record<z.infer<typeof payloadSchema>["key"], "PASSPORT" |
   SPONSOR_ID_DOCUMENT: "FINANCIAL_PROOF",
   SPONSORSHIP_DECLARATION_LETTER: "FINANCIAL_PROOF",
   SPONSORSHIP_CONFIRMATION_LETTER: "FINANCIAL_PROOF",
+  SCHOLARSHIP_LETTER: "FINANCIAL_PROOF",
 };
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {

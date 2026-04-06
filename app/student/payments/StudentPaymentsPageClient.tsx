@@ -42,20 +42,25 @@ interface StudentInvoice {
 export default function StudentPaymentsPageClient({ studentId }: { studentId: string }) {
   const [uploadingInvoiceId, setUploadingInvoiceId] = useState<string | null>(null);
 
-  const { data: invoices = [], isLoading } = useQuery({
+  const {
+    data: invoices = [],
+    isLoading,
+    error,
+    refetch,
+  } = useQuery<StudentInvoice[]>({
     queryKey: ["student-invoices-readonly", studentId],
     queryFn: async () => {
       const res = await fetch(`/api/students/${studentId}/invoices`);
       if (!res.ok) throw new Error("Failed to fetch invoices");
       const json = await res.json();
-      return json.data || [];
+      return Array.isArray(json.data) ? json.data : [];
     },
   });
 
   const { outstanding, paid } = useMemo(() => {
     return {
-      outstanding: invoices.filter((inv: StudentInvoice) => inv.status === "DUE"),
-      paid: invoices.filter((inv: StudentInvoice) => inv.status === "PAID"),
+      outstanding: invoices.filter((inv) => inv.status === "DUE" || inv.status === "PROOF_UPLOADED"),
+      paid: invoices.filter((inv) => inv.status === "PAID"),
     };
   }, [invoices]);
 
@@ -80,13 +85,13 @@ export default function StudentPaymentsPageClient({ studentId }: { studentId: st
         body: JSON.stringify({
           receiptUrl,
           receiptFileName: file.name,
-          paidAt: new Date().toISOString(),
         }),
       });
 
       if (!res.ok) throw new Error("Failed to upload receipt");
 
-      toast.success("Receipt uploaded successfully. Please wait for verification.");
+      toast.success("Receipt uploaded. Awaiting staff confirmation.");
+      await refetch();
       setUploadingInvoiceId(null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to upload receipt");
@@ -100,6 +105,12 @@ export default function StudentPaymentsPageClient({ studentId }: { studentId: st
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white">My Payments</h1>
         <p className="mt-1 text-slate-600 dark:text-slate-400">View your invoices and manage payments</p>
       </div>
+
+      {error && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+          Failed to load some payment data. Please refresh and try again.
+        </div>
+      )}
 
       {/* Outstanding Payments Section */}
       <section className="glass-card p-6">
@@ -123,8 +134,14 @@ export default function StudentPaymentsPageClient({ studentId }: { studentId: st
                       Raised by {invoice.createdByName} on {new Date(invoice.createdAt).toLocaleDateString()}
                     </p>
                   </div>
-                  <span className="inline-block px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold">
-                    DUE
+                  <span
+                    className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
+                      invoice.status === "PROOF_UPLOADED"
+                        ? "bg-amber-100 text-amber-700"
+                        : "bg-red-100 text-red-700"
+                    }`}
+                  >
+                    {invoice.status}
                   </span>
                 </div>
 
@@ -191,14 +208,42 @@ export default function StudentPaymentsPageClient({ studentId }: { studentId: st
                 </div>
 
                 {/* Upload Receipt */}
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setUploadingInvoiceId(invoice.id)}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg border border-blue-200/70 dark:border-blue-400/30 bg-blue-50/90 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-sm font-medium"
-                  >
-                    <Upload className="w-4 h-4" />
-                    Upload Receipt
-                  </button>
+                <div className="space-y-2">
+                  {invoice.status === "PROOF_UPLOADED" && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+                      Receipt uploaded. Awaiting staff confirmation.
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => setUploadingInvoiceId(invoice.id)}
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg border border-blue-200/70 dark:border-blue-400/30 bg-blue-50/90 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-sm font-medium"
+                    >
+                      <Upload className="w-4 h-4" />
+                      {invoice.status === "PROOF_UPLOADED" ? "Replace Receipt" : "Upload Receipt"}
+                    </button>
+
+                    {invoice.receiptUrl && (
+                      <>
+                        <a
+                          href={invoice.receiptUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                        >
+                          Preview Receipt
+                        </a>
+                        <a
+                          href={invoice.receiptUrl}
+                          download={invoice.receiptFileName || `receipt-${invoice.invoiceNumber}`}
+                          className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                        >
+                          Download Receipt
+                        </a>
+                      </>
+                    )}
+                  </div>
 
                   {uploadingInvoiceId === invoice.id && (
                     <div className="flex-1 flex gap-2">
@@ -239,6 +284,7 @@ export default function StudentPaymentsPageClient({ studentId }: { studentId: st
                   <th className="px-4 py-3 text-left font-semibold text-slate-700">Invoice No</th>
                   <th className="px-4 py-3 text-left font-semibold text-slate-700">Amount</th>
                   <th className="px-4 py-3 text-left font-semibold text-slate-700">Paid Date</th>
+                  <th className="px-4 py-3 text-left font-semibold text-slate-700">Status</th>
                   <th className="px-4 py-3 text-right font-semibold text-slate-700">Actions</th>
                 </tr>
               </thead>
@@ -251,6 +297,11 @@ export default function StudentPaymentsPageClient({ studentId }: { studentId: st
                     </td>
                     <td className="px-4 py-3 text-slate-600">
                       {invoice.paidAt && new Date(invoice.paidAt).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="inline-block rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+                        PAID
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-right space-x-2">
                       {invoice.receiptUrl && (

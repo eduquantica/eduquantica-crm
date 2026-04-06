@@ -7,6 +7,7 @@ import {
   DEFAULT_FINANCIAL_REQUIREMENTS,
   normalizeCountryCode,
   parseDurationMonths,
+  resolveVisaLivingExpenseMonths,
   resolveFinancialRequirement,
   type FinancialRequirementRule,
 } from "@/lib/financial-requirements";
@@ -69,6 +70,7 @@ const fundingPayloadSchema = z.object({
         z.object({
           accountHolderName: z.string().optional(),
           ownershipType: z.enum(["MY_PARENTS", "MY_SPONSOR", "MY_LOAN_PROVIDER", "OTHER_FAMILY_MEMBER", "OTHER"]).optional(),
+          manualUk28DayStatus: z.enum(["YES", "NO"]).optional(),
           ownershipOtherText: z.string().nullable().optional(),
         }),
       ).optional(),
@@ -255,6 +257,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       fileUrl: string;
       ocr: OfferLetterExtracted;
       uploadedAt: string;
+      autoExtracted?: boolean;
+      message?: string | null;
     }>(params.id, "offer_letter_uploaded");
 
     const depositUpload = await readLatestAction<{
@@ -494,6 +498,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         accountMeta?: Array<{
           accountHolderName?: string;
           ownershipType?: "MY_PARENTS" | "MY_SPONSOR" | "MY_LOAN_PROVIDER" | "OTHER_FAMILY_MEMBER" | "OTHER";
+          manualUk28DayStatus?: "YES" | "NO";
           ownershipOtherText?: string | null;
         }>;
       } | null;
@@ -638,6 +643,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
               accountMeta?: Array<{
                 accountHolderName?: string;
                 ownershipType?: "MY_PARENTS" | "MY_SPONSOR" | "MY_LOAN_PROVIDER" | "OTHER_FAMILY_MEMBER" | "OTHER";
+                manualUk28DayStatus?: "YES" | "NO";
                 ownershipOtherText?: string | null;
               }>;
             } | null)?.accountMeta || [],
@@ -693,11 +699,19 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     const offerScholarship = offerUpload?.ocr?.scholarship ?? null;
     const scholarshipFromSystem = systemScholarship;
     const scholarshipFinal = Math.max(scholarshipFromSystem, offerScholarship || 0);
-    const depositPaid = approvedDeposits.reduce((sum, item) => sum + (item.amountPaid || 0), 0);
+    const approvedDepositPaid = approvedDeposits.reduce((sum, item) => sum + (item.amountPaid || 0), 0);
+    const latestUploadedDepositAmount = depositUpload?.ocr?.amountPaid || 0;
+    const latestUploadedDocId = depositUpload?.documentId || null;
+    const latestAlreadyApproved = latestUploadedDocId
+      ? approvedDeposits.some((item) => item.documentId === latestUploadedDocId)
+      : false;
+    const pendingUploadedDepositAmount = latestAlreadyApproved ? 0 : latestUploadedDepositAmount;
+    const depositPaid = approvedDepositPaid + pendingUploadedDepositAmount;
 
     const parsedMonths = parseDurationMonths(application.course.duration);
-    const durationMonths = parsedMonths > 0 ? parsedMonths : activeRule.defaultMonths;
-    const livingExpenses = activeRule.monthlyLivingCost * durationMonths;
+    const courseDurationMonths = parsedMonths > 0 ? parsedMonths : activeRule.defaultMonths;
+    const livingExpenseMonths = resolveVisaLivingExpenseMonths(application.university.country, courseDurationMonths);
+    const livingExpenses = activeRule.monthlyLivingCost * livingExpenseMonths;
 
     const remainingTuition = Math.max(courseFee - scholarshipFinal - depositPaid, 0);
     const totalToShowInBank = remainingTuition + livingExpenses;
@@ -723,6 +737,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         studentId: application.student.id,
         studentFullName: `${application.student.firstName} ${application.student.lastName}`.trim(),
         hasOfferLetter: Boolean(offerUpload?.documentId),
+        offerLetterPrefillStatus: offerUpload?.ocr?.extractionStatus || null,
+        offerLetterPrefillMessage: offerUpload?.ocr?.extractionMessage || offerUpload?.message || null,
         canApproveDeposit: canApproveDeposit(session.user.roleName),
         offerLetter: offerUpload,
         depositReceipt: {
@@ -756,7 +772,14 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
           scholarshipFinal,
           depositPaid,
           livingExpenses,
-          durationMonths,
+          durationMonths: livingExpenseMonths,
+          livingExpenseMonths,
+          livingExpenseRuleLabel:
+            countryCode === "UK"
+              ? "9 months - UK rule"
+              : countryCode === "AU"
+                ? `${livingExpenseMonths} months - Australia full course duration`
+                : "12 months",
           remainingTuition,
           totalToShowInBank,
           feeDiscrepancy: offerCourseFee !== null && Math.abs(offerCourseFee - courseFee) > 1,
@@ -913,9 +936,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     });
 
     const activeRule = resolveFinancialRequirement(application.university.country);
-    const months = parseDurationMonths(application.course.duration) || activeRule.defaultMonths;
+    const courseDurationMonths = parseDurationMonths(application.course.duration) || activeRule.defaultMonths;
+    const livingExpenseMonths = resolveVisaLivingExpenseMonths(application.university.country, courseDurationMonths);
     const monthlyLivingCost = livingCostCountry?.monthlyLivingCost ?? activeRule.monthlyLivingCost;
-    const livingExpenses = monthlyLivingCost * months;
+    const livingExpenses = monthlyLivingCost * livingExpenseMonths;
     const scholarshipFinal = Math.max(systemScholarship, offerUpload?.ocr?.scholarship || 0);
     const remainingTuition = Math.max((application.course.tuitionFee || 0) - scholarshipFinal - depositPaid, 0);
     const totalRequired = remainingTuition + livingExpenses;
@@ -939,7 +963,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
           depositPaid,
           remainingTuition,
           livingExpenses,
-          durationMonths: months,
+          durationMonths: livingExpenseMonths,
           totalToShowInBank: totalRequired,
           otherExplanation: payload.otherExplanation || null,
         },
@@ -952,7 +976,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
           depositPaid,
           remainingTuition,
           livingExpenses,
-          durationMonths: months,
+          durationMonths: livingExpenseMonths,
           totalToShowInBank: totalRequired,
           otherExplanation: payload.otherExplanation || null,
         },

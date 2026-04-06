@@ -60,7 +60,6 @@ export default async function StudentFinancePage() {
   const applications = await db.application.findMany({
     where: {
       studentId: student.id,
-      offerReceivedAt: { not: null },
     },
     orderBy: { createdAt: "desc" },
     select: {
@@ -115,12 +114,12 @@ export default async function StudentFinancePage() {
     <main className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6">
       <section className="rounded-2xl border border-slate-200 bg-white p-6">
         <h1 className="text-2xl font-bold text-slate-900">Finance</h1>
-        <p className="mt-1 text-sm text-slate-600">Manage finance requirements for applications with an offer letter.</p>
+        <p className="mt-1 text-sm text-slate-600">Manage finance requirements for your applications.</p>
       </section>
 
       {applications.length === 0 ? (
         <section className="rounded-2xl border border-slate-200 bg-white p-8 text-center">
-          <p className="text-sm text-slate-600">Your finance section will appear here once you receive an offer letter.</p>
+          <p className="text-sm text-slate-600">No applications available yet.</p>
           <Link
             href="/student/courses"
             className="mt-5 inline-flex items-center rounded-lg bg-[#1E3A5F] px-4 py-2 text-sm font-semibold text-white hover:opacity-95"

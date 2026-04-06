@@ -114,3 +114,13 @@ export function parseDurationMonths(duration?: string | null): number {
   if (input.includes("week")) return Math.max(1, Math.round(number / 4));
   return Math.max(1, Math.round(number));
 }
+
+export function resolveVisaLivingExpenseMonths(country?: string | null, courseDurationMonths?: number): number {
+  const code = normalizeCountryCode(country);
+  const safeCourseMonths = Math.max(1, Number(courseDurationMonths || 12));
+
+  if (code === "UK") return 9;
+  if (code === "AU") return safeCourseMonths;
+  if (code === "CA" || code === "US" || code === "NZ" || code === "IE") return 12;
+  return 12;
+}
