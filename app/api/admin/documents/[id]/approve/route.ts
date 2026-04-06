@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { finalizeChecklistIfComplete } from "@/lib/checklist-review";
 import { triggerDocumentsSubmittedIfChecklistVerified } from "@/lib/application-status-triggers";
+import { NotificationService } from "@/lib/notifications";
 
 const ALLOWED_ROLES = new Set(["ADMIN", "MANAGER", "COUNSELLOR"]);
 const LOCKABLE_TYPES = new Set(["SOP", "PERSONAL_STATEMENT"]);
@@ -14,8 +15,11 @@ export async function POST(
 ) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user || !ALLOWED_ROLES.has(session.user.roleName)) {
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (!ALLOWED_ROLES.has(session.user.roleName)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const document = await db.document.findUnique({
@@ -98,6 +102,23 @@ export async function POST(
           .filter((id): id is string => Boolean(id))
           .map((applicationId) => triggerDocumentsSubmittedIfChecklistVerified(applicationId, session.user.id).catch(() => undefined)),
       );
+    }
+
+    if (document.type === "PASSPORT") {
+      const student = await db.student.findUnique({
+        where: { id: document.studentId },
+        select: { userId: true },
+      });
+
+      if (student?.userId) {
+        await NotificationService.createNotification({
+          userId: student.userId,
+          type: "DOCUMENT_VERIFIED",
+          message: "Your passport has been verified.",
+          linkUrl: "/student/documents",
+          actorUserId: session.user.id,
+        }).catch(() => undefined);
+      }
     }
 
     return NextResponse.json({

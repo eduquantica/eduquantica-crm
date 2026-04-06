@@ -39,6 +39,14 @@ type SmartItem = {
   deleteTarget?: DeleteTarget | null;
 };
 
+type ExtendedPassport = {
+  ocrStatus?: string;
+  lastDocumentId?: string;
+  passportFileUrl?: string;
+  passportFileName?: string;
+  passportUploadedAt?: string;
+};
+
 async function fileSizeByUrl(fileUrl: string | null) {
   if (!fileUrl) return null;
   const key = localUploadKeyFromUrl(toApiFilesPath(fileUrl));
@@ -168,6 +176,27 @@ async function maybeNotifyFileReady(input: {
       details: "Automatic notification sent after all smart checklist items were verified.",
     },
   }).catch(() => undefined);
+}
+
+async function readExtendedPassport(studentId: string): Promise<ExtendedPassport | null> {
+  const latest = await db.activityLog.findFirst({
+    where: {
+      entityType: "studentProfile",
+      entityId: studentId,
+      action: "upsert",
+    },
+    orderBy: { createdAt: "desc" },
+    select: { details: true },
+  });
+
+  if (!latest?.details) return null;
+
+  try {
+    const parsed = JSON.parse(latest.details) as { passport?: ExtendedPassport };
+    return parsed.passport && typeof parsed.passport === "object" ? parsed.passport : null;
+  } catch {
+    return null;
+  }
 }
 
 async function resolveStudent() {
@@ -304,6 +333,7 @@ export async function GET() {
   }
 
   const student = resolved.student;
+  const extendedPassport = await readExtendedPassport(student.id);
   const studentDocuments = student.documents;
   const docsByType = new Map<DocumentType, typeof studentDocuments>();
   for (const doc of studentDocuments) {
@@ -319,6 +349,14 @@ export async function GET() {
   };
 
   const passportDoc = latestByType(DocumentType.PASSPORT);
+  const passportFallback = !passportDoc && extendedPassport?.passportFileUrl && !extendedPassport?.lastDocumentId
+    ? {
+        fileUrl: toApiFilesPath(extendedPassport.passportFileUrl),
+        fileName: extendedPassport.passportFileName || "Passport",
+        uploadedAt: extendedPassport.passportUploadedAt || null,
+        status: extendedPassport.ocrStatus === "VERIFIED" ? "VERIFIED" as const : "UPLOADED" as const,
+      }
+    : null;
   const qualifications = (student.academicProfile?.qualifications || []).map((qualification) => {
     const labelPrefix = qualificationLabel(qualification.qualType, qualification.qualName);
     const certificateDoc = firstByTypeMatching(DocumentType.DEGREE_CERT, (doc) =>
@@ -351,11 +389,11 @@ export async function GET() {
     label: "Passport",
     documentType: "PASSPORT",
     itemKind: "PASSPORT",
-    status: passportDoc ? itemStatusFromDocument(passportDoc) : "TODO",
-    hasFile: Boolean(passportDoc),
-    fileUrl: passportDoc ? toApiFilesPath(passportDoc.fileUrl) : null,
-    fileName: passportDoc?.fileName || null,
-    uploadedAt: passportDoc?.uploadedAt.toISOString() || null,
+    status: passportDoc ? itemStatusFromDocument(passportDoc) : (passportFallback?.status || "TODO"),
+    hasFile: Boolean(passportDoc || passportFallback),
+    fileUrl: passportDoc ? toApiFilesPath(passportDoc.fileUrl) : (passportFallback?.fileUrl || null),
+    fileName: passportDoc?.fileName || passportFallback?.fileName || null,
+    uploadedAt: passportDoc?.uploadedAt.toISOString() || passportFallback?.uploadedAt || null,
     deleteTarget: passportDoc ? { sourceType: "DOCUMENT", sourceId: passportDoc.id } : null,
   });
 
@@ -625,7 +663,8 @@ export async function GET() {
   return NextResponse.json({
     data: {
       studentId: student.id,
-      passportFileUrl: passportDoc ? toApiFilesPath(passportDoc.fileUrl) : null,
+      studentName: `${student.firstName} ${student.lastName}`.trim(),
+      passportFileUrl: passportDoc ? toApiFilesPath(passportDoc.fileUrl) : (passportFallback?.fileUrl || null),
       qualifications,
       testScores: rawTestScores,
       documentRequests: student.documentRequests.map((request) => ({

@@ -344,6 +344,7 @@ export default function StudentDetailClient({
   const [decisionAction, setDecisionAction] = useState<DecisionAction | null>(null);
   const [decisionNote, setDecisionNote] = useState("");
   const [decisionLoading, setDecisionLoading] = useState(false);
+  const [passportDecisionLoadingId, setPassportDecisionLoadingId] = useState<string | null>(null);
     const [documentRequests, setDocumentRequests] = useState<DocumentRequestRow[]>([]);
     const [requestLoading, setRequestLoading] = useState(false);
     const [showRequestModal, setShowRequestModal] = useState(false);
@@ -971,6 +972,43 @@ export default function StudentDetailClient({
       setActionError(err instanceof Error ? err.message : "Failed to save decision");
     } finally {
       setDecisionLoading(false);
+    }
+  }
+
+  async function handlePassportDecision(docId: string, decision: "ACCEPTED" | "REVISION_REQUIRED" | "REJECTED") {
+    const note =
+      decision === "REVISION_REQUIRED" || decision === "REJECTED"
+        ? (window.prompt(decision === "REJECTED" ? "Enter rejection reason:" : "Add revision note:") || "").trim()
+        : "";
+
+    if ((decision === "REVISION_REQUIRED" || decision === "REJECTED") && !note) {
+      setActionError(decision === "REJECTED" ? "Rejection reason is required." : "Revision note is required.");
+      return;
+    }
+
+    setPassportDecisionLoadingId(docId);
+    setActionError(null);
+    setActionMessage(null);
+    try {
+      const res = await fetch(`/api/admin/documents/${docId}/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision, note: note || undefined }),
+      });
+      const json = await res.json() as { error?: string };
+      if (!res.ok) throw new Error(json.error || "Failed to save decision");
+      setActionMessage(
+        decision === "ACCEPTED"
+          ? "Passport verified."
+          : decision === "REVISION_REQUIRED"
+          ? "Revision requested from student."
+          : "Passport rejected.",
+      );
+      await fetchDocuments();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to update passport");
+    } finally {
+      setPassportDecisionLoadingId(null);
     }
   }
 
@@ -2119,6 +2157,19 @@ export default function StudentDetailClient({
                               >
                                 {doc.fileName}
                               </a>
+                              {doc.type === "PASSPORT" && (
+                                <div className="mt-1">
+                                  {doc.scanResult?.counsellorDecision === "REVISION_REQUIRED" ? (
+                                    <span className="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">Needs Revision</span>
+                                  ) : doc.status === "VERIFIED" ? (
+                                    <span className="inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">Verified</span>
+                                  ) : doc.status === "REJECTED" ? (
+                                    <span className="inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">Rejected</span>
+                                  ) : (
+                                    <span className="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">Pending</span>
+                                  )}
+                                </div>
+                              )}
                             </td>
                             <td className="py-3 pr-4 align-top">
                               <button
@@ -2200,6 +2251,36 @@ export default function StudentDetailClient({
                                     className="px-3 py-1.5 rounded border border-blue-300 text-blue-700 hover:bg-blue-50 disabled:opacity-50"
                                   >
                                     Unlock for Re-scan
+                                  </button>
+                                )}
+                                {doc.type === "PASSPORT" && canEdit && doc.status !== "VERIFIED" && (
+                                  <button
+                                    type="button"
+                                    disabled={passportDecisionLoadingId === doc.id}
+                                    onClick={() => void handlePassportDecision(doc.id, "ACCEPTED")}
+                                    className="px-3 py-1.5 rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                                  >
+                                    {passportDecisionLoadingId === doc.id ? "Saving..." : "Approve"}
+                                  </button>
+                                )}
+                                {doc.type === "PASSPORT" && canEdit && doc.status !== "REJECTED" && doc.scanResult?.counsellorDecision !== "REVISION_REQUIRED" && (
+                                  <button
+                                    type="button"
+                                    disabled={passportDecisionLoadingId === doc.id}
+                                    onClick={() => void handlePassportDecision(doc.id, "REVISION_REQUIRED")}
+                                    className="px-3 py-1.5 rounded border border-amber-300 text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+                                  >
+                                    Request Revision
+                                  </button>
+                                )}
+                                {doc.type === "PASSPORT" && canEdit && doc.status !== "REJECTED" && (
+                                  <button
+                                    type="button"
+                                    disabled={passportDecisionLoadingId === doc.id}
+                                    onClick={() => void handlePassportDecision(doc.id, "REJECTED")}
+                                    className="px-3 py-1.5 rounded border border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-50"
+                                  >
+                                    Reject
                                   </button>
                                 )}
                               </div>

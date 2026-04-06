@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { PDFDocument } from "pdf-lib";
+import { toast } from "sonner";
 import ChecklistUploadZone from "@/components/ui/ChecklistUploadZone";
 import TestScoresManager from "@/components/student/TestScoresManager";
 import DocumentPreviewModal from "@/components/shared/DocumentPreviewModal";
@@ -127,6 +129,8 @@ type WorkExperienceEntry = {
   orderIndex?: number;
 };
 
+type RequiredFieldErrors = Record<string, string>;
+
 const TABS: Array<{ key: TabKey; label: string }> = [
   { key: "personal", label: "Personal Info" },
   { key: "address", label: "Address and Contact" },
@@ -176,8 +180,13 @@ function createEmptyWorkEntry(): WorkExperienceEntry {
   };
 }
 
-function FieldLabel({ children }: { children: React.ReactNode }) {
-  return <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">{children}</label>;
+function FieldLabel({ children, required = false }: { children: React.ReactNode; required?: boolean }) {
+  return (
+    <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+      {children}
+      {required ? <span className="ml-1 text-rose-600">*</span> : null}
+    </label>
+  );
 }
 
 function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
@@ -218,6 +227,9 @@ export default function StudentProfilePage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [passportPreviewOpen, setPassportPreviewOpen] = useState(false);
+  const [requiredErrors, setRequiredErrors] = useState<RequiredFieldErrors>({});
+  const [passportFileSize, setPassportFileSize] = useState<number | null>(null);
+  const [passportSaved, setPassportSaved] = useState(false);
 
   const [personal, setPersonal] = useState<ProfileResponse["data"]["personal"]>({
     firstName: "",
@@ -295,6 +307,122 @@ export default function StudentProfilePage() {
     }
   }
 
+  function clearRequiredError(field: string) {
+    setRequiredErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  }
+
+  function fieldError(field: string) {
+    return requiredErrors[field] ? <p className="mt-1 text-xs text-rose-600">This field is required</p> : null;
+  }
+
+  function formatBytes(size: number | null) {
+    if (size == null) return "-";
+    if (size < 1024) return `${size} B`;
+    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+    return `${(size / (1024 * 1024)).toFixed(2)} MB`;
+  }
+
+  function buildPassportDownloadName() {
+    const rawName = `${personal.firstName || "student"}-${personal.lastName || "passport"}`
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "student-passport";
+    return `passport-${rawName}.pdf`;
+  }
+
+  function isPassportImageFile(file: File) {
+    const lower = file.name.toLowerCase();
+    if (file.type.startsWith("image/")) return true;
+    return [".jpg", ".jpeg", ".png", ".webp", ".heic"].some((ext) => lower.endsWith(ext));
+  }
+
+  async function convertImageFileToPdf(file: File) {
+    const bytes = await file.arrayBuffer();
+    const pdf = await PDFDocument.create();
+    let embeddedImage;
+
+    if (file.type.includes("jpeg") || file.type.includes("jpg")) {
+      embeddedImage = await pdf.embedJpg(bytes);
+    } else if (file.type.includes("png")) {
+      embeddedImage = await pdf.embedPng(bytes);
+    } else {
+      const objectUrl = URL.createObjectURL(file);
+      try {
+        const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const element = new Image();
+          element.onload = () => resolve(element);
+          element.onerror = () => reject(new Error("Failed to process image"));
+          element.src = objectUrl;
+        });
+
+        const canvas = document.createElement("canvas");
+        canvas.width = image.naturalWidth;
+        canvas.height = image.naturalHeight;
+        const context = canvas.getContext("2d");
+        if (!context) {
+          throw new Error("Failed to prepare image canvas");
+        }
+
+        context.drawImage(image, 0, 0);
+        const pngDataUrl = canvas.toDataURL("image/png");
+        const pngBytes = await fetch(pngDataUrl).then((res) => res.arrayBuffer());
+        embeddedImage = await pdf.embedPng(pngBytes);
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+    }
+
+    const page = pdf.addPage([embeddedImage.width, embeddedImage.height]);
+    page.drawImage(embeddedImage, {
+      x: 0,
+      y: 0,
+      width: embeddedImage.width,
+      height: embeddedImage.height,
+    });
+
+    const pdfBytes = await pdf.save();
+    const pdfBuffer = new ArrayBuffer(pdfBytes.byteLength);
+    new Uint8Array(pdfBuffer).set(pdfBytes);
+    const baseName = file.name.replace(/\.[^/.]+$/, "");
+    return new File([pdfBuffer], `${baseName}.pdf`, { type: "application/pdf" });
+  }
+
+  function validateRequiredFields(tab: Exclude<TabKey, "academic" | "tests">): RequiredFieldErrors {
+    const nextErrors: RequiredFieldErrors = {};
+
+    if (tab === "personal") {
+      if (!personal.firstName.trim()) nextErrors["personal.firstName"] = "This field is required";
+      if (!personal.lastName.trim()) nextErrors["personal.lastName"] = "This field is required";
+      if (!personal.dateOfBirth) nextErrors["personal.dateOfBirth"] = "This field is required";
+      if (!personal.gender.trim()) nextErrors["personal.gender"] = "This field is required";
+      if (!personal.nationality.trim()) nextErrors["personal.nationality"] = "This field is required";
+      if (!personal.phone.trim()) nextErrors["personal.phone"] = "This field is required";
+      if (!personal.email.trim()) nextErrors["personal.email"] = "This field is required";
+    }
+
+    if (tab === "address") {
+      if (!address.street.trim()) nextErrors["address.street"] = "This field is required";
+      if (!address.city.trim()) nextErrors["address.city"] = "This field is required";
+      if (!address.country.trim()) nextErrors["address.country"] = "This field is required";
+      if (!address.postalCode.trim()) nextErrors["address.postalCode"] = "This field is required";
+    }
+
+    if (tab === "passport") {
+      if (!passport.passportNumber.trim()) nextErrors["passport.passportNumber"] = "This field is required";
+      if (!passport.expiryDate) nextErrors["passport.expiryDate"] = "This field is required";
+      if (!passport.dateOfIssue) nextErrors["passport.dateOfIssue"] = "This field is required";
+      if (!passport.countryOfIssue.trim()) nextErrors["passport.countryOfIssue"] = "This field is required";
+      if (!passport.passportFileUrl.trim()) nextErrors["passport.passportFileUrl"] = "This field is required";
+    }
+
+    return nextErrors;
+  }
+
   useEffect(() => {
     let mounted = true;
     if (typeof window !== "undefined") {
@@ -346,6 +474,14 @@ export default function StudentProfilePage() {
   }, []);
 
   async function saveTab(tab: Exclude<TabKey, "academic" | "tests">) {
+    const nextErrors = validateRequiredFields(tab);
+    if (Object.keys(nextErrors).length > 0) {
+      setRequiredErrors(nextErrors);
+      setError("Please complete all required fields.");
+      return false;
+    }
+
+    setRequiredErrors({});
     setSaving(true);
     setMessage(null);
     setError(null);
@@ -533,11 +669,27 @@ export default function StudentProfilePage() {
     setPassportUploading(true);
     setError(null);
     setMessage(null);
+    setPassportSaved(false);
+    let fileToUpload = file;
+    let convertedToPdf = false;
+
+    if (isPassportImageFile(file)) {
+      try {
+        fileToUpload = await convertImageFileToPdf(file);
+        convertedToPdf = true;
+      } catch {
+        setPassportUploading(false);
+        setError("Failed to convert image to PDF. Please upload a PDF file.");
+        return;
+      }
+    }
+
+    setPassportFileSize(fileToUpload.size);
     setPassport((prev) => ({ ...prev, ocrStatus: "VERIFYING" }));
 
     try {
       const fd = new FormData();
-      fd.append("files", file);
+      fd.append("files", fileToUpload);
       const uploadRes = await fetch("/api/upload", { method: "POST", body: fd });
       const uploadJson = await uploadRes.json() as { urls?: string[]; error?: string; message?: string };
       if (!uploadRes.ok || !uploadJson.urls?.[0]) {
@@ -550,7 +702,7 @@ export default function StudentProfilePage() {
         body: JSON.stringify({
           kind: "PASSPORT",
           fileUrl: uploadJson.urls[0],
-          fileName: file.name,
+          fileName: fileToUpload.name,
         }),
       });
       const scanJson = await scanRes.json() as {
@@ -574,7 +726,7 @@ export default function StudentProfilePage() {
         ocrStatus: scanJson.data?.ocrStatus || "NEEDS_REVIEW",
         lastDocumentId: scanJson.data?.documentId || "",
         passportFileUrl: uploadJson.urls?.[0] || "",
-        passportFileName: file.name,
+        passportFileName: fileToUpload.name,
         passportUploadedAt: new Date().toISOString(),
         lastOcrName: scanJson.data?.detected.name || "",
         lastOcrNumber: scanJson.data?.detected.number || "",
@@ -582,9 +734,15 @@ export default function StudentProfilePage() {
         passportNumber: scanJson.data?.detected.number || prev.passportNumber,
         expiryDate: scanJson.data?.detected.expiry || prev.expiryDate,
       }));
+      clearRequiredError("passport.passportFileUrl");
 
       const prefix = uploadJson.message ? `${uploadJson.message} ` : "";
-      setMessage(`${prefix}${scanJson.data.message || "Document uploaded successfully. Your counsellor will review the document manually."}`);
+      const conversionMessage = convertedToPdf ? "Image converted to PDF. " : "";
+      setMessage(`${conversionMessage}${prefix}${scanJson.data.message || "Document uploaded successfully. Your counsellor will review the document manually."}`);
+      if (convertedToPdf) {
+        toast.success("Image converted to PDF");
+      }
+      toast.success("Passport uploaded successfully");
     } catch {
       setError(null);
       setMessage("Document uploaded successfully. Your counsellor will review the document manually.");
@@ -633,6 +791,9 @@ export default function StudentProfilePage() {
   async function deletePassportDocument() {
     if (!passport.lastDocumentId) return;
 
+    const confirmed = window.confirm("Delete passport document? Cannot be undone.");
+    if (!confirmed) return;
+
     setSaving(true);
     setError(null);
     setMessage(null);
@@ -654,6 +815,8 @@ export default function StudentProfilePage() {
         lastOcrNumber: "",
         lastOcrExpiry: "",
       }));
+      setPassportFileSize(null);
+      setPassportSaved(false);
 
       await saveTab("passport");
       setMessage("Passport file deleted.");
@@ -720,44 +883,51 @@ export default function StudentProfilePage() {
           <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Personal Info</h2>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <div>
-              <FieldLabel>First Name</FieldLabel>
-              <Input value={personal.firstName} onChange={(e) => setPersonal((prev) => ({ ...prev, firstName: e.target.value }))} />
+              <FieldLabel required>First Name</FieldLabel>
+              <Input required value={personal.firstName} onChange={(e) => { clearRequiredError("personal.firstName"); setPersonal((prev) => ({ ...prev, firstName: e.target.value })); }} />
+              {fieldError("personal.firstName")}
             </div>
             <div>
-              <FieldLabel>Last Name</FieldLabel>
-              <Input value={personal.lastName} onChange={(e) => setPersonal((prev) => ({ ...prev, lastName: e.target.value }))} />
+              <FieldLabel required>Last Name</FieldLabel>
+              <Input required value={personal.lastName} onChange={(e) => { clearRequiredError("personal.lastName"); setPersonal((prev) => ({ ...prev, lastName: e.target.value })); }} />
+              {fieldError("personal.lastName")}
             </div>
 
             <div>
-              <FieldLabel>Email</FieldLabel>
-              <Input value={personal.email} readOnly disabled className="bg-slate-100/70 dark:bg-slate-800/80" />
+              <FieldLabel required>Email Address</FieldLabel>
+              <Input required value={personal.email} readOnly disabled className="bg-slate-100/70 dark:bg-slate-800/80" />
+              {fieldError("personal.email")}
             </div>
             <div>
-              <FieldLabel>Phone</FieldLabel>
+              <FieldLabel required>Phone Number</FieldLabel>
               <div className="grid grid-cols-3 gap-2">
                 <Select value={personal.dialCode} onChange={(e) => setPersonal((prev) => ({ ...prev, dialCode: e.target.value }))}>
                   {DIAL_CODES.map((item) => (
                     <option key={item.code} value={item.code}>{item.code} ({item.country})</option>
                   ))}
                 </Select>
-                <Input className="col-span-2" value={personal.phone} onChange={(e) => setPersonal((prev) => ({ ...prev, phone: e.target.value }))} />
+                <Input required className="col-span-2" value={personal.phone} onChange={(e) => { clearRequiredError("personal.phone"); setPersonal((prev) => ({ ...prev, phone: e.target.value })); }} />
               </div>
+              {fieldError("personal.phone")}
             </div>
 
             <div>
-              <FieldLabel>Date of Birth</FieldLabel>
-              <Input type="date" value={personal.dateOfBirth || ""} onChange={(e) => setPersonal((prev) => ({ ...prev, dateOfBirth: e.target.value }))} />
+              <FieldLabel required>Date of Birth</FieldLabel>
+              <Input required type="date" value={personal.dateOfBirth || ""} onChange={(e) => { clearRequiredError("personal.dateOfBirth"); setPersonal((prev) => ({ ...prev, dateOfBirth: e.target.value })); }} />
+              {fieldError("personal.dateOfBirth")}
             </div>
             <div>
-              <FieldLabel>Gender (Optional)</FieldLabel>
-              <Select value={personal.gender || ""} onChange={(e) => setPersonal((prev) => ({ ...prev, gender: e.target.value }))}>
+              <FieldLabel required>Gender</FieldLabel>
+              <Select required value={personal.gender || ""} onChange={(e) => { clearRequiredError("personal.gender"); setPersonal((prev) => ({ ...prev, gender: e.target.value })); }}>
                 {GENDERS.map((option) => <option key={option} value={option}>{option || "Select"}</option>)}
               </Select>
+              {fieldError("personal.gender")}
             </div>
 
             <div>
-              <FieldLabel>Nationality</FieldLabel>
-              <Input list="country-options" value={personal.nationality || ""} onChange={(e) => setPersonal((prev) => ({ ...prev, nationality: e.target.value }))} />
+              <FieldLabel required>Nationality</FieldLabel>
+              <Input required list="country-options" value={personal.nationality || ""} onChange={(e) => { clearRequiredError("personal.nationality"); setPersonal((prev) => ({ ...prev, nationality: e.target.value })); }} />
+              {fieldError("personal.nationality")}
             </div>
             <div>
               <FieldLabel>Country of Residence</FieldLabel>
@@ -796,11 +966,11 @@ export default function StudentProfilePage() {
         <section className="glass-card rounded-2xl p-5 sm:p-6">
           <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Address and Contact</h2>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <div className="md:col-span-2"><FieldLabel>Street</FieldLabel><Input value={address.street} onChange={(e) => setAddress((prev) => ({ ...prev, street: e.target.value }))} /></div>
-            <div><FieldLabel>City</FieldLabel><Input value={address.city} onChange={(e) => setAddress((prev) => ({ ...prev, city: e.target.value }))} /></div>
+            <div className="md:col-span-2"><FieldLabel required>Address Line 1</FieldLabel><Input required value={address.street} onChange={(e) => { clearRequiredError("address.street"); setAddress((prev) => ({ ...prev, street: e.target.value })); }} />{fieldError("address.street")}</div>
+            <div><FieldLabel required>City</FieldLabel><Input required value={address.city} onChange={(e) => { clearRequiredError("address.city"); setAddress((prev) => ({ ...prev, city: e.target.value })); }} />{fieldError("address.city")}</div>
             <div><FieldLabel>State / Province</FieldLabel><Input value={address.state} onChange={(e) => setAddress((prev) => ({ ...prev, state: e.target.value }))} /></div>
-            <div><FieldLabel>Postal Code</FieldLabel><Input value={address.postalCode} onChange={(e) => setAddress((prev) => ({ ...prev, postalCode: e.target.value }))} /></div>
-            <div><FieldLabel>Country</FieldLabel><Input list="country-options" value={address.country} onChange={(e) => setAddress((prev) => ({ ...prev, country: e.target.value }))} /></div>
+            <div><FieldLabel required>Postcode/ZIP</FieldLabel><Input required value={address.postalCode} onChange={(e) => { clearRequiredError("address.postalCode"); setAddress((prev) => ({ ...prev, postalCode: e.target.value })); }} />{fieldError("address.postalCode")}</div>
+            <div><FieldLabel required>Country of Residence</FieldLabel><Input required list="country-options" value={address.country} onChange={(e) => { clearRequiredError("address.country"); setAddress((prev) => ({ ...prev, country: e.target.value })); }} />{fieldError("address.country")}</div>
           </div>
 
           <h3 className="mt-6 text-base font-semibold text-slate-900 dark:text-slate-100">Emergency Contact</h3>
@@ -819,13 +989,14 @@ export default function StudentProfilePage() {
         <section className="glass-card rounded-2xl p-5 sm:p-6">
           <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Passport and ID</h2>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <div><FieldLabel>Passport Number</FieldLabel><Input value={passport.passportNumber} onChange={(e) => setPassport((prev) => ({ ...prev, passportNumber: e.target.value }))} /></div>
-            <div><FieldLabel>Country of Issue</FieldLabel><Input list="country-options" value={passport.countryOfIssue} onChange={(e) => setPassport((prev) => ({ ...prev, countryOfIssue: e.target.value }))} /></div>
-            <div><FieldLabel>Date of Issue</FieldLabel><Input type="date" value={passport.dateOfIssue || ""} onChange={(e) => setPassport((prev) => ({ ...prev, dateOfIssue: e.target.value }))} /></div>
-            <div><FieldLabel>Expiry Date</FieldLabel><Input type="date" value={passport.expiryDate || ""} onChange={(e) => setPassport((prev) => ({ ...prev, expiryDate: e.target.value }))} /></div>
+            <div><FieldLabel required>Passport Number</FieldLabel><Input required value={passport.passportNumber} onChange={(e) => { clearRequiredError("passport.passportNumber"); setPassport((prev) => ({ ...prev, passportNumber: e.target.value })); }} />{fieldError("passport.passportNumber")}</div>
+            <div><FieldLabel required>Passport Issuing Country</FieldLabel><Input required list="country-options" value={passport.countryOfIssue} onChange={(e) => { clearRequiredError("passport.countryOfIssue"); setPassport((prev) => ({ ...prev, countryOfIssue: e.target.value })); }} />{fieldError("passport.countryOfIssue")}</div>
+            <div><FieldLabel required>Passport Issue Date</FieldLabel><Input required type="date" value={passport.dateOfIssue || ""} onChange={(e) => { clearRequiredError("passport.dateOfIssue"); setPassport((prev) => ({ ...prev, dateOfIssue: e.target.value })); }} />{fieldError("passport.dateOfIssue")}</div>
+            <div><FieldLabel required>Passport Expiry Date</FieldLabel><Input required type="date" value={passport.expiryDate || ""} onChange={(e) => { clearRequiredError("passport.expiryDate"); setPassport((prev) => ({ ...prev, expiryDate: e.target.value })); }} />{fieldError("passport.expiryDate")}</div>
           </div>
 
           <div className="mt-5">
+            <FieldLabel required>Passport document upload</FieldLabel>
             <ChecklistUploadZone
               onFileSelected={uploadAndScanPassport}
               uploading={passportUploading}
@@ -833,29 +1004,50 @@ export default function StudentProfilePage() {
               documentField="PASSPORT"
               documentType="PASSPORT"
             />
+            {fieldError("passport.passportFileUrl")}
           </div>
 
           {passport.passportFileUrl && passport.lastDocumentId ? (
             <div className="mt-4 rounded-xl border border-white/50 bg-white/60 p-4 backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/50">
               <p className="text-sm font-medium text-slate-800 dark:text-slate-200">Uploaded passport file</p>
               <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{passport.passportFileName || "Passport document"}</p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Size: {formatBytes(passportFileSize)}</p>
               {passport.passportUploadedAt ? (
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Uploaded: {new Date(passport.passportUploadedAt).toLocaleString()}</p>
               ) : null}
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => setPassportPreviewOpen(true)}
+                  onClick={() => {
+                    window.open(toApiFilesDownloadPath(passport.passportFileUrl), "_blank", "noopener,noreferrer");
+                  }}
                   className="rounded-lg border border-white/50 bg-white/70 px-3 py-2 text-xs font-semibold text-slate-700 backdrop-blur-sm hover:bg-white dark:border-white/10 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-900"
                 >
                   Preview
                 </button>
                 <a
                   href={toApiFilesDownloadPath(passport.passportFileUrl)}
+                  download={buildPassportDownloadName()}
                   className="rounded-lg border border-white/50 bg-white/70 px-3 py-2 text-xs font-semibold text-slate-700 backdrop-blur-sm hover:bg-white dark:border-white/10 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-900"
                 >
                   Download
                 </a>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void (async () => {
+                      const ok = await saveTab("passport");
+                      if (ok) {
+                        setPassportSaved(true);
+                        setMessage("Passport saved successfully");
+                        toast.success("Passport saved successfully");
+                      }
+                    })();
+                  }}
+                  className="rounded-lg border border-white/50 bg-white/70 px-3 py-2 text-xs font-semibold text-slate-700 backdrop-blur-sm hover:bg-white dark:border-white/10 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-900"
+                >
+                  {passportSaved ? "✓ Saved" : "Save"}
+                </button>
                 <button
                   type="button"
                   onClick={() => void deletePassportDocument()}

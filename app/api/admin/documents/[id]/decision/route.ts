@@ -4,8 +4,9 @@ import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { finalizeChecklistIfComplete } from "@/lib/checklist-review";
+import { NotificationService } from "@/lib/notifications";
 
-const ALLOWED_ROLES = new Set(["ADMIN", "COUNSELLOR"]);
+const ALLOWED_ROLES = new Set(["ADMIN", "MANAGER", "COUNSELLOR"]);
 const LOCKABLE_TYPES = new Set(["SOP", "PERSONAL_STATEMENT"]);
 
 const bodySchema = z.object({
@@ -19,8 +20,11 @@ export async function POST(
 ) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user || !ALLOWED_ROLES.has(session.user.roleName)) {
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (!ALLOWED_ROLES.has(session.user.roleName)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const parsed = bodySchema.safeParse(await request.json());
@@ -107,6 +111,7 @@ export async function POST(
         },
       });
 
+      // Keep activity trail for revision/rejection outcomes.
       if (parsed.data.decision === "REVISION_REQUIRED" || parsed.data.decision === "REJECTED") {
         await tx.activityLog.create({
           data: {
@@ -154,6 +159,32 @@ export async function POST(
 
       return scan;
     });
+
+    if (document.type === "PASSPORT" && document.student.userId) {
+      const message =
+        parsed.data.decision === "ACCEPTED"
+          ? "Your passport has been verified."
+          : parsed.data.decision === "REVISION_REQUIRED"
+          ? note
+            ? `Your passport needs revision. Note: ${note}`
+            : "Your passport needs revision. Please re-upload."
+          : note
+          ? `Your passport was rejected. Reason: ${note}`
+          : "Your passport has been rejected.";
+
+      await NotificationService.createNotification({
+        userId: document.student.userId,
+        type:
+          parsed.data.decision === "ACCEPTED"
+            ? "DOCUMENT_VERIFIED"
+            : parsed.data.decision === "REVISION_REQUIRED"
+            ? "DOCUMENT_REVISION_REQUIRED"
+            : "DOCUMENT_REJECTED",
+        message,
+        linkUrl: "/student/documents",
+        actorUserId: session.user.id,
+      }).catch(() => undefined);
+    }
 
     return NextResponse.json({
       data: {

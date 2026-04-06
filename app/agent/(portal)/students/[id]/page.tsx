@@ -90,6 +90,19 @@ type StudentDetailResponse = {
         universalScore: number | null;
       }>;
     }>;
+    documents: Array<{
+      id: string;
+      type: string;
+      fileName: string;
+      fileUrl: string;
+      status: string;
+      uploadedAt: string;
+      scanResult: {
+        status: string;
+        counsellorDecision: string | null;
+        counsellorNote: string | null;
+      } | null;
+    }>;
     certificate: {
       signedPdfUrl: string | null;
       verificationRef: string | null;
@@ -1504,6 +1517,74 @@ export default function AgentStudentDetailPage() {
               )}
 
               {/* Signed Declarations Section */}
+              {(() => {
+                const passportDocs = (data.documents || []).filter((d) => d.type === "PASSPORT");
+                if (passportDocs.length === 0) return null;
+                return (
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <h3 className="text-sm font-semibold text-slate-900">Passport</h3>
+                    <div className="mt-3 overflow-x-auto">
+                      <table className="min-w-full text-sm">
+                        <thead>
+                          <tr className="border-b text-left text-slate-500">
+                            <th className="py-2 pr-3">Document</th>
+                            <th className="py-2 pr-3">Verification Status</th>
+                            <th className="py-2 pr-3">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {passportDocs.map((doc) => {
+                            let verificationLabel = "Pending";
+                            let verificationClass = "bg-amber-100 text-amber-700";
+
+                            if (doc.scanResult?.counsellorDecision === "REVISION_REQUIRED") {
+                              verificationLabel = "Needs Revision";
+                              verificationClass = "bg-amber-100 text-amber-700";
+                            } else if (doc.status === "VERIFIED") {
+                              verificationLabel = "Verified";
+                              verificationClass = "bg-emerald-100 text-emerald-700";
+                            } else if (doc.status === "REJECTED") {
+                              verificationLabel = "Rejected";
+                              verificationClass = "bg-red-100 text-red-700";
+                            }
+                            return (
+                              <tr key={doc.id} className="border-b last:border-0">
+                                <td className="py-2 pr-3 align-top">
+                                  <p className="font-medium text-slate-900">Passport</p>
+                                  <p className="text-xs text-slate-500">{doc.fileName}</p>
+                                </td>
+                                <td className="py-2 pr-3 align-top">
+                                  <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${verificationClass}`}>
+                                    {verificationLabel}
+                                  </span>
+                                </td>
+                                <td className="py-2 pr-3 align-top">
+                                  <div className="flex flex-wrap gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setPreviewDoc({ fileName: doc.fileName, fileUrl: toApiFilesPath(doc.fileUrl) })}
+                                      className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                                    >
+                                      Preview
+                                    </button>
+                                    <a
+                                      href={toApiFilesDownloadPath(doc.fileUrl)}
+                                      className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                                    >
+                                      Download
+                                    </a>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div className="rounded-lg border border-slate-200 bg-white p-4">
                 <h3 className="mb-3 text-sm font-semibold text-slate-900">Signed Declarations</h3>
                 {declarationsLoading ? (

@@ -73,16 +73,35 @@ export async function POST(req: Request) {
     const payload = postSchema.parse(await req.json());
     const type = payload.kind === "PASSPORT" ? "PASSPORT" : payload.kind === "ENGLISH_TEST" ? "ENGLISH_TEST" : "OTHER";
 
-    const document = await db.document.create({
-      data: {
+    const existingDocument = await db.document.findFirst({
+      where: {
         studentId: ctx.student.id,
         type,
-        fileName: payload.fileName,
-        fileUrl: payload.fileUrl,
-        status: "PENDING",
       },
+      orderBy: { uploadedAt: "desc" },
       select: { id: true },
     });
+
+    const document = existingDocument
+      ? await db.document.update({
+          where: { id: existingDocument.id },
+          data: {
+            fileName: payload.fileName,
+            fileUrl: payload.fileUrl,
+            status: "PENDING",
+          },
+          select: { id: true, uploadedAt: true },
+        })
+      : await db.document.create({
+          data: {
+            studentId: ctx.student.id,
+            type,
+            fileName: payload.fileName,
+            fileUrl: payload.fileUrl,
+            status: "PENDING",
+          },
+          select: { id: true, uploadedAt: true },
+        });
 
     if (payload.kind === "PASSPORT") {
       const result = await scanPassport(payload.fileUrl);
@@ -109,6 +128,9 @@ export async function POST(req: Request) {
         lastOcrNumber: detected.number,
         lastOcrExpiry: detected.expiry,
         lastDocumentId: document.id,
+        passportFileUrl: payload.fileUrl,
+        passportFileName: payload.fileName,
+        passportUploadedAt: document.uploadedAt.toISOString(),
       };
 
       await db.activityLog.create({

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check } from "lucide-react";
 import ChecklistUploadZone from "@/components/ui/ChecklistUploadZone";
@@ -44,6 +45,7 @@ type RequiredChecklistItem = {
 type DocumentsResponse = {
   data: {
     studentId: string;
+    studentName: string;
     passportFileUrl: string | null;
     verifiedCount: number;
     totalRequired: number;
@@ -113,6 +115,14 @@ function detectVaultSuggestion(fileName: string) {
   return "Document uploaded. You can link it to a checklist item from this page.";
 }
 
+function buildPassportDownloadName(studentName: string) {
+  const normalized = studentName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "student";
+  return `passport-${normalized}.pdf`;
+}
+
 function ChecklistStateIcon({ status }: { status: RequiredChecklistItem["status"] }) {
   if (status === "VERIFIED") {
     return (
@@ -148,6 +158,7 @@ export default function StudentDocumentsPage() {
   const [vaultUploading, setVaultUploading] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<{ name: string; url: string } | null>(null);
   const [studentId, setStudentId] = useState<string>("");
+  const [studentName, setStudentName] = useState<string>("student");
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -162,6 +173,7 @@ export default function StudentDocumentsPage() {
 
       setVerifiedCount(json.data.verifiedCount || 0);
       setStudentId(json.data.studentId || "");
+      setStudentName(json.data.studentName || "student");
       setTotalRequired(json.data.totalRequired || 0);
       setPendingReviewCount(json.data.pendingReviewCount || 0);
       setNeedsRevisionCount(json.data.needsRevisionCount || 0);
@@ -185,8 +197,8 @@ export default function StudentDocumentsPage() {
     return Math.round((verifiedCount / totalRequired) * 100);
   }, [verifiedCount, totalRequired]);
 
-  async function deleteUpload(target: DeleteTarget) {
-    const confirmed = window.confirm("Are you sure you want to delete this file?");
+  async function deleteUpload(target: DeleteTarget, confirmationMessage = "Are you sure you want to delete this file?") {
+    const confirmed = window.confirm(confirmationMessage);
     if (!confirmed) return;
 
     const targetKey = `${target.sourceType}:${target.sourceId}`;
@@ -384,6 +396,18 @@ export default function StudentDocumentsPage() {
           {requiredChecklist.map((item) => {
             const itemUrl = item.fileUrl ? toApiFilesPath(item.fileUrl) : "";
             const targetKey = item.deleteTarget ? `${item.deleteTarget.sourceType}:${item.deleteTarget.sourceId}` : null;
+            const isPassportItem = item.documentType === "PASSPORT";
+            const badgeClass = isPassportItem
+              ? item.fileUrl
+                ? "bg-emerald-100 text-emerald-700"
+                : "bg-amber-100 text-amber-700"
+              : statusBadgeClass(item.status);
+            const badgeLabel = isPassportItem
+              ? item.fileUrl
+                ? "Uploaded"
+                : "Upload Required"
+              : statusLabel(item.status);
+            const passportDownloadName = buildPassportDownloadName(studentName);
             return (
               <article key={item.id} className="rounded-xl border border-white/40 bg-white/50 dark:border-white/10 dark:bg-white/5 p-4 backdrop-blur-sm">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -398,7 +422,7 @@ export default function StudentDocumentsPage() {
                       {item.staffNote && <p className="text-xs italic text-slate-500">{item.staffNote}</p>}
                     </div>
                   </div>
-                  <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusBadgeClass(item.status)}`}>{statusLabel(item.status)}</span>
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${badgeClass}`}>{badgeLabel}</span>
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -406,30 +430,42 @@ export default function StudentDocumentsPage() {
                     <>
                       <button
                         type="button"
-                        onClick={() => setPreviewDoc({ name: item.fileName || item.label, url: itemUrl })}
+                        onClick={() => {
+                          if (isPassportItem) {
+                            window.open(toApiFilesDownloadPath(itemUrl), "_blank", "noopener,noreferrer");
+                            return;
+                          }
+                          setPreviewDoc({ name: item.fileName || item.label, url: itemUrl });
+                        }}
                         className="rounded border border-slate-300 dark:border-white/20 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/10"
                       >
                         Preview
                       </button>
                       <a
                         href={toApiFilesDownloadPath(itemUrl)}
+                        download={isPassportItem ? passportDownloadName : undefined}
                         className="rounded border border-slate-300 dark:border-white/20 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/10"
                       >
                         Download
                       </a>
-                      <a
-                        href={toApiFilesDownloadPath(itemUrl)}
-                        download
-                        className="rounded border border-slate-300 dark:border-white/20 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/10"
-                      >
-                        Save
-                      </a>
+                      {!isPassportItem ? (
+                        <a
+                          href={toApiFilesDownloadPath(itemUrl)}
+                          download
+                          className="rounded border border-slate-300 dark:border-white/20 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/10"
+                        >
+                          Save
+                        </a>
+                      ) : null}
                       {item.deleteTarget && (
                         <button
                           type="button"
                           disabled={deletingTarget === targetKey}
                           onClick={() => {
-                            void deleteUpload(item.deleteTarget as DeleteTarget);
+                            void deleteUpload(
+                              item.deleteTarget as DeleteTarget,
+                              isPassportItem ? "Delete passport document? Cannot be undone." : undefined,
+                            );
                           }}
                           className="rounded border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"
                         >
@@ -437,6 +473,13 @@ export default function StudentDocumentsPage() {
                         </button>
                       )}
                     </>
+                  ) : isPassportItem ? (
+                    <Link
+                      href="/student/profile#passport"
+                      className="rounded border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100"
+                    >
+                      Upload
+                    </Link>
                   ) : (
                     <div className="w-full max-w-xl">
                       <ChecklistUploadZone
