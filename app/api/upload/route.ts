@@ -105,7 +105,7 @@ export async function POST(request: Request) {
     for (const result of transformed) {
       try {
         const blob = await put(buildBlobName(result.file), result.file, {
-          access: "public",
+          access: "private",
           contentType: result.file.type || "application/octet-stream",
           token,
         });
