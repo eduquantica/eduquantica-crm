@@ -6,6 +6,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ensureApplicationMilestones } from "@/lib/application-milestones";
 import { NotificationService } from "@/lib/notifications";
+import { saveToStudentDocument } from "@/lib/saveToStudentDocument";
 
 const MILESTONE_LABELS: Record<ApplicationMilestone, string> = {
   APPLICATION_SUBMISSION: "Application Submission",
@@ -153,6 +154,38 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       notes: true,
     },
   });
+
+  if (payload.milestone === "FINANCE" && payload.fileUrl?.trim() && payload.fileName?.trim()) {
+    const savedDeposit = await saveToStudentDocument(
+      application.studentId,
+      "DEPOSIT_RECEIPT",
+      payload.fileUrl,
+      payload.fileName,
+      session.user.id,
+    );
+
+    await db.activityLog.create({
+      data: {
+        userId: session.user.id,
+        entityType: "application",
+        entityId: application.id,
+        action: "deposit_receipt_uploaded",
+        details: JSON.stringify({
+          documentId: savedDeposit.id,
+          fileName: payload.fileName,
+          fileUrl: payload.fileUrl,
+          uploadedAt: new Date().toISOString(),
+          ocr: {
+            amountPaid: null,
+            paymentDate: null,
+            paymentReference: null,
+            currency: null,
+            confidence: null,
+          },
+        }),
+      },
+    }).catch(() => undefined);
+  }
 
   await db.activityLog.create({
     data: {

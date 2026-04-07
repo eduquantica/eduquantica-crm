@@ -4,6 +4,7 @@ import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { scanFinancialDoc } from "@/lib/mindee";
+import { saveToStudentDocument } from "@/lib/saveToStudentDocument";
 
 const schema = z.object({
   fileName: z.string().min(1),
@@ -165,17 +166,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const document = await db.document.create({
-      data: {
-        studentId: application.studentId,
-        applicationId: application.id,
-        type: "FINANCIAL_PROOF",
-        fileName: parsed.data.fileName,
-        fileUrl: parsed.data.fileUrl,
-        status: "PENDING",
-      },
-      select: { id: true },
-    });
+    const savedDoc = await saveToStudentDocument(
+      application.studentId,
+      "DEPOSIT_RECEIPT",
+      parsed.data.fileUrl,
+      parsed.data.fileName,
+      session.user.id,
+    );
+
+    const document = { id: savedDoc.id };
 
     const anthropicResult = await extractDepositWithAnthropic(parsed.data.fileUrl);
     const ocrResult = anthropicResult ? null : await scanFinancialDoc(parsed.data.fileUrl);
@@ -221,6 +220,49 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           uploadedAt: new Date().toISOString(),
           ocr,
         }),
+      },
+    });
+
+    await db.applicationMilestoneDocument.upsert({
+      where: {
+        applicationId_milestone: {
+          applicationId: application.id,
+          milestone: "FINANCE",
+        },
+      },
+      create: {
+        applicationId: application.id,
+        milestone: "FINANCE",
+        title: "Finance",
+        status: "UPLOADED",
+        fileName: parsed.data.fileName,
+        fileUrl: parsed.data.fileUrl,
+        uploadedAt: new Date(),
+      },
+      update: {
+        status: "UPLOADED",
+        fileName: parsed.data.fileName,
+        fileUrl: parsed.data.fileUrl,
+        uploadedAt: new Date(),
+      },
+    });
+
+    await db.financeRecord.upsert({
+      where: { applicationId: application.id },
+      update: {
+        depositPaid: ocr.amountPaid || 0,
+      },
+      create: {
+        applicationId: application.id,
+        selectedSources: [],
+        courseFee: 0,
+        courseFeeCurrency: ocr.currency || "GBP",
+        scholarshipFinal: 0,
+        depositPaid: ocr.amountPaid || 0,
+        remainingTuition: 0,
+        livingExpenses: 0,
+        durationMonths: 12,
+        totalToShowInBank: 0,
       },
     });
 

@@ -743,9 +743,9 @@ export default function StudentProfilePage() {
         toast.success("Image converted to PDF");
       }
       toast.success("Passport uploaded successfully");
-    } catch {
-      setError(null);
-      setMessage("Document uploaded successfully. Your counsellor will review the document manually.");
+    } catch (err) {
+      setMessage(null);
+      setError(err instanceof Error ? err.message : "Upload failed. Please try again.");
       setPassport((prev) => ({ ...prev, ocrStatus: "NEEDS_REVIEW" }));
     } finally {
       setPassportUploading(false);

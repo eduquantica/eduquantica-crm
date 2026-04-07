@@ -4,6 +4,7 @@ import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { scanGenericDoc, scanPassport } from "@/lib/mindee";
+import { saveToStudentDocument } from "@/lib/saveToStudentDocument";
 
 const postSchema = z.object({
   kind: z.enum(["PASSPORT", "ENGLISH_TEST", "OTHER_TEST"]),
@@ -71,48 +72,35 @@ export async function POST(req: Request) {
 
   try {
     const payload = postSchema.parse(await req.json());
-    const type = payload.kind === "PASSPORT" ? "PASSPORT" : payload.kind === "ENGLISH_TEST" ? "ENGLISH_TEST" : "OTHER";
-
-    const existingDocument = await db.document.findFirst({
-      where: {
-        studentId: ctx.student.id,
-        type,
-      },
-      orderBy: { uploadedAt: "desc" },
-      select: { id: true },
-    });
-
-    const document = existingDocument
-      ? await db.document.update({
-          where: { id: existingDocument.id },
-          data: {
-            fileName: payload.fileName,
-            fileUrl: payload.fileUrl,
-            status: "PENDING",
-          },
-          select: { id: true, uploadedAt: true },
-        })
-      : await db.document.create({
-          data: {
-            studentId: ctx.student.id,
-            type,
-            fileName: payload.fileName,
-            fileUrl: payload.fileUrl,
-            status: "PENDING",
-          },
-          select: { id: true, uploadedAt: true },
-        });
+    const documentTypeLabel = payload.kind === "PASSPORT" ? "PASSPORT" : payload.kind === "ENGLISH_TEST" ? "ENGLISH_TEST" : "OTHER";
+    const savedDocument = await saveToStudentDocument(
+      ctx.student.id,
+      documentTypeLabel,
+      payload.fileUrl,
+      payload.fileName,
+      ctx.session.user.id,
+    );
+    const document = {
+      id: savedDocument.id,
+      uploadedAt: savedDocument.uploadedAt,
+    };
 
     if (payload.kind === "PASSPORT") {
-      const result = await scanPassport(payload.fileUrl);
+      let result: Awaited<ReturnType<typeof scanPassport>> | { error: string };
+      try {
+        result = await scanPassport(payload.fileUrl);
+      } catch {
+        result = { error: "Passport OCR failed" };
+      }
+
       const hasError = "error" in result;
-      const usedAnthropicFallback = !hasError && result.source === "anthropic";
+      const usedAnthropicFallback = !hasError && "source" in result && result.source === "anthropic";
       const detected = hasError
         ? { name: "", number: "", expiry: "" }
         : {
-            name: `${result.givenNames || ""} ${result.surname || ""}`.trim(),
-            number: result.documentNumber || "",
-            expiry: result.expiryDate || "",
+            name: `${"givenNames" in result ? result.givenNames || "" : ""} ${"surname" in result ? result.surname || "" : ""}`.trim(),
+            number: "documentNumber" in result ? result.documentNumber || "" : "",
+            expiry: "expiryDate" in result ? result.expiryDate || "" : "",
           };
 
       const extended = await readExtended(ctx.student.id);

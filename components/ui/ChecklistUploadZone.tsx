@@ -93,7 +93,7 @@ export default function ChecklistUploadZone({
       <p className={`font-medium text-slate-800 ${compact ? "text-sm" : "text-base"}`}>
         Drag & drop your file here
       </p>
-      <p className="mt-1 text-xs text-slate-500">PDF, JPG, JPEG, PNG, WEBP, HEIC supported. Images are auto-converted to PDF; files over 5MB are auto-compressed.</p>
+      <p className="mt-1 text-xs text-slate-500">PDF, JPG, JPEG, PNG, WEBP, HEIC, DOC, DOCX supported. Images are auto-converted to PDF; files over 5MB are auto-compressed.</p>
 
       {hasActiveMobileSession && (
         <div className="mt-2 inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
@@ -126,7 +126,7 @@ export default function ChecklistUploadZone({
       <input
         ref={inputRef}
         type="file"
-        accept="application/pdf,image/*"
+        accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.doc,.docx,application/pdf,image/*,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];

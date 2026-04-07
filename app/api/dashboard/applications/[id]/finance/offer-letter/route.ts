@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { scanFinancialDoc, scanGenericDoc } from "@/lib/mindee";
 import { detectCurrency, extractOfferFields } from "@/lib/application-finance";
+import { saveToStudentDocument } from "@/lib/saveToStudentDocument";
 
 const schema = z.object({
   fileName: z.string().min(1),
@@ -166,17 +167,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const document = await db.document.create({
-      data: {
-        studentId: application.studentId,
-        applicationId: application.id,
-        type: "OTHER",
-        fileName: parsed.data.fileName,
-        fileUrl: parsed.data.fileUrl,
-        status: "PENDING",
-      },
-      select: { id: true },
-    });
+    const savedDoc = await saveToStudentDocument(
+      application.studentId,
+      "OFFER_LETTER",
+      parsed.data.fileUrl,
+      parsed.data.fileName,
+      session.user.id,
+    );
+    const document = { id: savedDoc.id };
 
     let extractedText = "";
     let confidence: number | null = null;

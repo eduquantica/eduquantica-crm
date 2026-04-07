@@ -3,6 +3,17 @@ import { getServerSession } from "next-auth/next";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { saveToStudentDocument } from "@/lib/saveToStudentDocument";
+
+function testTypeToDocumentLabel(value: string) {
+  const upper = String(value || "").toUpperCase();
+  if (upper.includes("IELTS")) return "IELTS_CERTIFICATE";
+  if (upper.includes("TOEFL")) return "TOEFL_CERTIFICATE";
+  if (upper.includes("PTE")) return "PTE_CERTIFICATE";
+  if (upper.includes("DUOLINGO")) return "DUOLINGO_CERTIFICATE";
+  if (upper.includes("OET")) return "OET_CERTIFICATE";
+  return "ENGLISH_TEST";
+}
 
 const writeSchema = z.object({
   testType: z.string().trim().min(1, "Test type is required"),
@@ -132,6 +143,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       where: { id: scoreId },
       data: normalized,
     });
+
+    if (normalized.certificateUrl && normalized.certificateFileName) {
+      await saveToStudentDocument(
+        id,
+        testTypeToDocumentLabel(normalized.testType),
+        normalized.certificateUrl,
+        normalized.certificateFileName,
+        session.user.id,
+      );
+    }
 
     return NextResponse.json({ data: updated });
   } catch (error) {

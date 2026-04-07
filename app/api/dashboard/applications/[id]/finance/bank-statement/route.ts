@@ -8,6 +8,7 @@ import { scanFinancialDoc } from "@/lib/mindee";
 import { parseDurationMonths, resolveFinancialRequirement, resolveVisaLivingExpenseMonths } from "@/lib/financial-requirements";
 import { maskAccountNumber, verifyBankStatement } from "@/lib/bank-statement-verification";
 import { NotificationService } from "@/lib/notifications";
+import { saveToStudentDocument } from "@/lib/saveToStudentDocument";
 
 const schema = z.object({
   fileName: z.string().min(1),
@@ -134,17 +135,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const livingExpenses = activeRule.monthlyLivingCost * durationMonths;
     const totalToShowInBank = remainingTuition + livingExpenses;
 
-    const document = await db.document.create({
-      data: {
-        studentId: application.studentId,
-        applicationId: application.id,
-        type: "FINANCIAL_PROOF",
-        fileName: parsed.data.fileName,
-        fileUrl: parsed.data.fileUrl,
-        status: "PENDING",
-      },
-      select: { id: true },
-    });
+    const savedDoc = await saveToStudentDocument(
+      application.studentId,
+      "BANK_STATEMENT",
+      parsed.data.fileUrl,
+      parsed.data.fileName,
+      session.user.id,
+    );
+    const document = { id: savedDoc.id };
 
     const ocrResult = await scanFinancialDoc(parsed.data.fileUrl);
     const extracted = "error" in ocrResult

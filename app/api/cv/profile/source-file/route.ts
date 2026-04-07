@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { removeUploadByUrl } from "@/lib/local-upload";
 import { DocumentType } from "@prisma/client";
+import { saveToStudentDocument } from "@/lib/saveToStudentDocument";
 
 type SessionUser = {
   id: string;
@@ -111,23 +112,22 @@ export async function POST(request: NextRequest) {
 
   const previous = await getLatestCvDocument(studentId);
 
-  const document = await db.document.create({
-    data: {
-      studentId,
-      type: DocumentType.CV,
-      fileName,
-      fileUrl,
-      status: "PENDING",
-    },
-    select: {
-      id: true,
-      fileName: true,
-      fileUrl: true,
-      uploadedAt: true,
-    },
-  });
+  const saved = await saveToStudentDocument(
+    studentId,
+    "CV",
+    fileUrl,
+    fileName,
+    user.id,
+  );
 
-  if (previous?.id) {
+  const document = {
+    id: saved.id,
+    fileName: saved.fileName,
+    fileUrl: saved.fileUrl,
+    uploadedAt: saved.uploadedAt,
+  };
+
+  if (previous?.id && previous.id !== saved.id) {
     await db.documentScanResult.deleteMany({ where: { documentId: previous.id } });
     await db.document.delete({ where: { id: previous.id } });
     await removeUploadByUrl(previous.fileUrl);
