@@ -4,7 +4,6 @@ import { put } from "@vercel/blob";
 import { randomUUID } from "crypto";
 import { authOptions } from "@/lib/auth";
 import { PDFConverter } from "@/lib/pdf-converter";
-import { storeUpload, getLocalUploadPath } from "@/lib/local-upload";
 
 export const maxDuration = 60;
 
@@ -27,12 +26,20 @@ export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
 
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  if (!token) {
     return NextResponse.json(
       { error: "BLOB_READ_WRITE_TOKEN is missing. Add it in project environment variables." },
       { status: 500 },
     );
   }
+
+  console.log("Token check:", {
+    exists: !!token,
+    length: token?.length,
+    prefix: token?.substring(0, 15),
+    isValidFormat: token?.startsWith("vercel_blob_rw_"),
+  });
 
   try {
     const formData = await request.formData();
@@ -89,7 +96,7 @@ export async function POST(request: Request) {
     );
 
     console.log("Attempting blob upload", {
-      blobTokenExists: !!process.env.BLOB_READ_WRITE_TOKEN,
+      tokenExists: !!token,
       fileCount: transformed.length,
       fileTypes: transformed.map(f => f.file.type),
     });
@@ -99,26 +106,24 @@ export async function POST(request: Request) {
       try {
         const blob = await put(buildBlobName(result.file), result.file, {
           access: "public",
-          contentType: result.file.type || undefined,
+          contentType: result.file.type || "application/octet-stream",
+          token,
         });
         stored.push(blob);
       } catch (blobError) {
-        console.warn("Blob upload failed, attempting fallback to local storage", {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const err = blobError as any;
+        console.error("BLOB PUT FAILED:", {
           error: blobError instanceof Error ? blobError.message : String(blobError),
+          errorCode: err?.code,
+          errorStatus: err?.status,
+          tokenExists: !!token,
+          tokenLength: token?.length,
+          tokenPrefix: token?.substring(0, 10),
           fileName: result.file.name,
+          fileSize: result.file.size,
         });
-        try {
-          const localStored = await storeUpload(result.file);
-          const localUrl = new URL(getLocalUploadPath(localStored.key), request.url).toString();
-          stored.push({ url: localUrl });
-          console.log("Fallback local storage succeeded", { fileName: result.file.name });
-        } catch (localError) {
-          console.error("Fallback local storage also failed", {
-            error: localError instanceof Error ? localError.message : String(localError),
-            fileName: result.file.name,
-          });
-          throw localError;
-        }
+        throw blobError;
       }
     }
     const urls = stored.map((row) => row.url);
