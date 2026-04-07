@@ -2678,7 +2678,7 @@ export default function StudentDetailClient({
                   </button>
                   {activeWrittenDoc.convertedPdfUrl ? (
                     <a
-                      href={activeWrittenDoc.convertedPdfUrl}
+                      href={toApiFilesDownloadPath(activeWrittenDoc.convertedPdfUrl)}
                       target="_blank"
                       rel="noreferrer"
                       className="rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800"

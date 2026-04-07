@@ -14,9 +14,30 @@ function encodePathSegments(path: string) {
     .join("/");
 }
 
+function isVercelBlobUrl(input: string) {
+  const value = String(input || "").trim();
+  if (!value.startsWith("http://") && !value.startsWith("https://")) return false;
+
+  try {
+    const parsed = new URL(value);
+    return parsed.hostname.includes("blob.vercel-storage.com");
+  } catch {
+    return false;
+  }
+}
+
+function toSignedBlobPath(inputUrl: string, download = false) {
+  const encoded = encodeURIComponent(inputUrl);
+  return `/api/blob/signed-url?url=${encoded}${download ? "&download=1" : ""}`;
+}
+
 export function toApiFilesPath(inputUrl: string | null | undefined): string {
   const source = String(inputUrl || "").trim();
   if (!source) return "";
+
+  if (isVercelBlobUrl(source)) {
+    return toSignedBlobPath(source);
+  }
 
   let pathname = source;
   let search = "";
@@ -52,6 +73,11 @@ export function toApiFilesPath(inputUrl: string | null | undefined): string {
 }
 
 export function toApiFilesDownloadPath(inputUrl: string | null | undefined): string {
+  const source = String(inputUrl || "").trim();
+  if (isVercelBlobUrl(source)) {
+    return toSignedBlobPath(source, true);
+  }
+
   const resolved = toApiFilesPath(inputUrl);
   if (!resolved) return "";
   if (!resolved.startsWith("/api/files/")) return resolved;

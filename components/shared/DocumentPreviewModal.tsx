@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { toApiFilesDownloadPath, toApiFilesPath } from "@/lib/file-url";
+import { getBlobUrl } from "@/lib/getBlobUrl";
 
 type Props = {
   fileUrl: string;
@@ -20,8 +21,8 @@ function extensionFromName(fileName: string, fileUrl: string) {
 
 export default function DocumentPreviewModal({ fileUrl, fileName, onClose }: Props) {
   const [imageBroken, setImageBroken] = useState(false);
-  const resolvedUrl = useMemo(() => toApiFilesPath(fileUrl), [fileUrl]);
-  const downloadUrl = useMemo(() => toApiFilesDownloadPath(fileUrl), [fileUrl]);
+  const [resolvedUrl, setResolvedUrl] = useState(() => toApiFilesPath(fileUrl));
+  const [downloadUrl, setDownloadUrl] = useState(() => toApiFilesDownloadPath(fileUrl));
   const ext = useMemo(() => extensionFromName(fileName, resolvedUrl), [fileName, resolvedUrl]);
 
   const isPdf = ext === "pdf";
@@ -29,6 +30,22 @@ export default function DocumentPreviewModal({ fileUrl, fileName, onClose }: Pro
   const isImage = ["jpg", "jpeg", "png", "webp", "heic", "gif"].includes(ext);
 
   useEffect(() => {
+    let mounted = true;
+
+    const previewPath = toApiFilesPath(fileUrl);
+    const downloadPath = toApiFilesDownloadPath(fileUrl);
+    setResolvedUrl(previewPath);
+    setDownloadUrl(downloadPath);
+    setImageBroken(false);
+
+    if (previewPath.startsWith("/api/blob/signed-url?") || downloadPath.startsWith("/api/blob/signed-url?")) {
+      void getBlobUrl(fileUrl).then((signedUrl) => {
+        if (!mounted || !signedUrl) return;
+        setResolvedUrl(signedUrl);
+        setDownloadUrl(signedUrl);
+      });
+    }
+
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         onClose();
@@ -37,9 +54,10 @@ export default function DocumentPreviewModal({ fileUrl, fileName, onClose }: Pro
 
     window.addEventListener("keydown", onKeyDown);
     return () => {
+      mounted = false;
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [onClose]);
+  }, [fileUrl, onClose]);
 
   return (
     <div
