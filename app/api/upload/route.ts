@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
+import { put } from "@vercel/blob";
+import { randomUUID } from "crypto";
 import { authOptions } from "@/lib/auth";
 import { PDFConverter } from "@/lib/pdf-converter";
-import { getLocalUploadPath, storeUpload } from "@/lib/local-upload";
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const ALLOWED_EXTENSIONS = new Set([".pdf", ".jpg", ".jpeg", ".png", ".webp", ".heic", ".doc", ".docx"]);
@@ -13,9 +14,22 @@ function isAllowedFile(file: File) {
   return ALLOWED_EXTENSIONS.has(ext);
 }
 
+function buildBlobName(file: File) {
+  const name = String(file.name || "upload");
+  const sanitized = name.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") || "upload";
+  return `${Date.now()}-${randomUUID()}-${sanitized}`;
+}
+
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
+
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    return NextResponse.json(
+      { error: "BLOB_READ_WRITE_TOKEN is missing. Add it in project environment variables." },
+      { status: 500 },
+    );
+  }
 
   try {
     const formData = await request.formData();
@@ -71,8 +85,16 @@ export async function POST(request: Request) {
       }),
     );
 
-    const stored = await Promise.all(transformed.map((result) => storeUpload(result.file)));
-    const urls = stored.map((row) => new URL(getLocalUploadPath(row.key), request.url).toString());
+    const stored = await Promise.all(
+      transformed.map(async (result) => {
+        const blob = await put(buildBlobName(result.file), result.file, {
+          access: "public",
+          contentType: result.file.type || undefined,
+        });
+        return blob;
+      }),
+    );
+    const urls = stored.map((row) => row.url);
 
     const notices = transformed.map((result) => {
       if (result.converted && result.compressed) return "Image converted to PDF and compressed.";
