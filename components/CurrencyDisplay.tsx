@@ -6,6 +6,7 @@ interface CurrencyDisplayProps {
   amount: number | null;
   baseCurrency: string;
   studentNationality?: string;
+  showYearSuffix?: boolean;
 }
 
 // map nationality to default currency
@@ -53,7 +54,7 @@ interface StudentProfile {
   preferredCurrency: string | null;
 }
 
-export default function CurrencyDisplay({ amount, baseCurrency, studentNationality }: CurrencyDisplayProps) {
+export default function CurrencyDisplay({ amount, baseCurrency, studentNationality, showYearSuffix = true }: CurrencyDisplayProps) {
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [preferred, setPreferred] = useState<string | null>(null);
   const [rate, setRate] = useState<number | null>(null);
@@ -137,7 +138,7 @@ export default function CurrencyDisplay({ amount, baseCurrency, studentNationali
   return (
     <div className="space-y-1">
       <div className="text-lg font-bold">
-        {CURRENCY_SYMBOL[baseCurrency] || baseCurrency} {amount.toLocaleString()} / year
+        {CURRENCY_SYMBOL[baseCurrency] || baseCurrency} {amount.toLocaleString()}{showYearSuffix ? " / year" : ""}
       </div>
       {converted != null && targetCurrency && targetCurrency !== baseCurrency && (
         <div className="text-sm text-gray-500">

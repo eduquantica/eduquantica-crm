@@ -380,7 +380,6 @@ export default function ApplicationFinanceTab({ applicationId, userRole, student
     }, 0);
   }, [accounts, accountMeta, data?.bankStatements]);
 
-  const recommendedBuffer = (data?.summary.totalToShowInBank || 0) * 1.25;
   const livingExpenseMonths = data?.summary.livingExpenseMonths || data?.summary.durationMonths || 12;
   const livingExpenseRuleLabel = data?.summary.livingExpenseRuleLabel || `${livingExpenseMonths} months`;
 
@@ -392,6 +391,18 @@ export default function ApplicationFinanceTab({ applicationId, userRole, student
     if (!Number.isFinite(manual) || manual <= 0) return data.summary.depositPaid;
     return Math.max(data.summary.depositPaid, manual);
   }, [data, manualDepositAmount]);
+
+  const computedRemainingTuition = useMemo(() => {
+    if (!data) return 0;
+    return Math.max((data.summary.courseFee || 0) - (data.summary.scholarshipFinal || 0) - displayDepositPaid, 0);
+  }, [data, displayDepositPaid]);
+
+  const computedTotalRequiredInBank = useMemo(() => {
+    if (!data) return 0;
+    return computedRemainingTuition + (data.summary.livingExpenses || 0);
+  }, [data, computedRemainingTuition]);
+
+  const recommendedBuffer = computedTotalRequiredInBank * 1.25;
 
   const declaredContributions = useMemo(() => {
     const rows: Array<{ source: FundingSource; label: string; amount: number }> = [];
@@ -460,9 +471,9 @@ export default function ApplicationFinanceTab({ applicationId, userRole, student
       };
     }
 
-    const course = allocateFromPool(data?.summary.remainingTuition || 0);
+    const course = allocateFromPool(computedRemainingTuition);
     const living = allocateFromPool(data?.summary.livingExpenses || 0);
-    const totalRequired = data?.summary.totalToShowInBank || 0;
+    const totalRequired = computedTotalRequiredInBank;
     const totalDeclared = declaredContributions.reduce((sum, row) => sum + row.amount, 0);
     const totalGap = Math.max(totalRequired - totalDeclared, 0);
 
@@ -473,7 +484,7 @@ export default function ApplicationFinanceTab({ applicationId, userRole, student
       totalDeclared,
       totalGap,
     };
-  }, [declaredContributions, data?.summary.livingExpenses, data?.summary.remainingTuition, data?.summary.totalToShowInBank]);
+  }, [computedRemainingTuition, computedTotalRequiredInBank, declaredContributions, data?.summary.livingExpenses]);
 
   useEffect(() => {
     if (!data?.funding) return;
@@ -1066,15 +1077,15 @@ export default function ApplicationFinanceTab({ applicationId, userRole, student
         )}
 
         <div className="mt-4 grid gap-3 md:grid-cols-2">
-          <div className="rounded-lg border border-slate-200 p-3"><p className="text-xs text-slate-500">Course Fee</p><CurrencyDisplay amount={data.summary.courseFee} baseCurrency={data.summary.courseFeeCurrency} studentNationality={studentNationality || undefined} /></div>
-          <div className="rounded-lg border border-slate-200 p-3"><p className="text-xs text-slate-500">Scholarship</p><CurrencyDisplay amount={data.summary.scholarshipFinal} baseCurrency={effectiveCurrency} studentNationality={studentNationality || undefined} /></div>
-          <div className="rounded-lg border border-slate-200 p-3"><p className="text-xs text-slate-500">Deposit Paid</p><CurrencyDisplay amount={displayDepositPaid} baseCurrency={effectiveCurrency} studentNationality={studentNationality || undefined} /></div>
-          <div className="rounded-lg border border-slate-200 p-3"><p className="text-xs text-slate-500">Living Expenses ({livingExpenseRuleLabel})</p><CurrencyDisplay amount={data.summary.livingExpenses} baseCurrency={effectiveCurrency} studentNationality={studentNationality || undefined} /></div>
-          <div className="rounded-lg border border-slate-200 p-3"><p className="text-xs text-slate-500">Remaining Tuition</p><CurrencyDisplay amount={data.summary.remainingTuition} baseCurrency={effectiveCurrency} studentNationality={studentNationality || undefined} /></div>
+          <div className="rounded-lg border border-slate-200 p-3"><p className="text-xs text-slate-500">Course Fee</p><CurrencyDisplay amount={data.summary.courseFee} baseCurrency={data.summary.courseFeeCurrency} studentNationality={studentNationality || undefined} showYearSuffix={false} /></div>
+          <div className="rounded-lg border border-slate-200 p-3"><p className="text-xs text-slate-500">Scholarship</p><CurrencyDisplay amount={data.summary.scholarshipFinal} baseCurrency={effectiveCurrency} studentNationality={studentNationality || undefined} showYearSuffix={false} /></div>
+          <div className="rounded-lg border border-slate-200 p-3"><p className="text-xs text-slate-500">Deposit Paid</p><CurrencyDisplay amount={displayDepositPaid} baseCurrency={effectiveCurrency} studentNationality={studentNationality || undefined} showYearSuffix={false} /></div>
+          <div className="rounded-lg border border-slate-200 p-3"><p className="text-xs text-slate-500">UKVI Living Cost ({livingExpenseMonths} months)</p><CurrencyDisplay amount={data.summary.livingExpenses} baseCurrency={effectiveCurrency} studentNationality={studentNationality || undefined} showYearSuffix={false} /></div>
+          <div className="rounded-lg border border-slate-200 p-3"><p className="text-xs text-slate-500">Remaining Tuition</p><CurrencyDisplay amount={computedRemainingTuition} baseCurrency={effectiveCurrency} studentNationality={studentNationality || undefined} showYearSuffix={false} /></div>
           <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
-            <p className="text-xs text-slate-500">Total Required in Bank</p>
+            <p className="text-xs text-slate-500">Total Required Funds</p>
             <p className="mt-1 text-2xl font-bold" style={{ color: "#1B2A4A" }}>
-              £{Math.round(data.summary.totalToShowInBank).toLocaleString()}
+              £{Math.round(computedTotalRequiredInBank).toLocaleString()}
             </p>
           </div>
         </div>
@@ -1085,9 +1096,9 @@ export default function ApplicationFinanceTab({ applicationId, userRole, student
             <div className="flex items-center justify-between"><span>Tuition Fee</span><span>£{Math.round(data.summary.courseFee).toLocaleString()}</span></div>
             <div className="flex items-center justify-between"><span>- Deposit Paid</span><span>-£{Math.round(displayDepositPaid).toLocaleString()}</span></div>
             <div className="flex items-center justify-between"><span>- Scholarship</span><span>-£{Math.round(data.summary.scholarshipFinal).toLocaleString()}</span></div>
-            <div className="border-t border-slate-300 pt-1 mt-1 flex items-center justify-between font-medium"><span>Remaining Tuition</span><span>£{Math.round(data.summary.remainingTuition).toLocaleString()}</span></div>
+            <div className="border-t border-slate-300 pt-1 mt-1 flex items-center justify-between font-medium"><span>Remaining Tuition</span><span>£{Math.round(computedRemainingTuition).toLocaleString()}</span></div>
             <div className="flex items-center justify-between"><span>+ Living Expenses ({livingExpenseMonths}mo)</span><span>£{Math.round(data.summary.livingExpenses).toLocaleString()}</span></div>
-            <div className="border-t border-slate-300 pt-2 mt-2 flex items-center justify-between text-2xl font-bold" style={{ color: "#1B2A4A" }}><span>Total Required in Bank</span><span>£{Math.round(data.summary.totalToShowInBank).toLocaleString()}</span></div>
+            <div className="border-t border-slate-300 pt-2 mt-2 flex items-center justify-between text-2xl font-bold" style={{ color: "#1B2A4A" }}><span>Total Required Funds</span><span>£{Math.round(computedTotalRequiredInBank).toLocaleString()}</span></div>
           </div>
         </div>
       </section>
@@ -1322,7 +1333,7 @@ export default function ApplicationFinanceTab({ applicationId, userRole, student
                     const ocr28DayFailed = statement?.checks?.uk28DayRule?.status === "FAIL";
                     const isCancelledForFunding = manual28DayStatus === "NO" || ocr28DayFailed;
                     const effectiveAllocatedAmount = isCancelledForFunding ? 0 : (account.allocatedAmount || 0);
-                    const coversCourse = effectiveAllocatedAmount >= data.summary.remainingTuition;
+                    const coversCourse = effectiveAllocatedAmount >= computedRemainingTuition;
                     const coversLiving = effectiveAllocatedAmount >= data.summary.livingExpenses;
                     const outcomeClasses =
                       statement?.outcome === "GREEN"
@@ -1636,7 +1647,7 @@ export default function ApplicationFinanceTab({ applicationId, userRole, student
 
                           <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
                             <p className="text-sm font-semibold text-slate-900">
-                              Did the required amount of £{Math.round(data.summary.totalToShowInBank).toLocaleString()} remain in your account for 28 consecutive days without dropping below this amount?
+                              Did the required amount of £{Math.round(computedTotalRequiredInBank).toLocaleString()} remain in your account for 28 consecutive days without dropping below this amount?
                             </p>
                             <div className="mt-3 grid gap-2 md:grid-cols-2">
                               <button
@@ -1644,14 +1655,14 @@ export default function ApplicationFinanceTab({ applicationId, userRole, student
                                 onClick={() => updateAccountMeta(index, { manualUk28DayStatus: "YES" })}
                                 className={`rounded-lg border px-3 py-2 text-left text-sm font-semibold ${manual28DayStatus === "YES" ? "border-emerald-400 bg-emerald-100 text-emerald-900" : "border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50"}`}
                               >
-                                ✅ YES - The amount stayed above £{Math.round(data.summary.totalToShowInBank).toLocaleString()} for at least 28 consecutive days
+                                ✅ YES - The amount stayed above £{Math.round(computedTotalRequiredInBank).toLocaleString()} for at least 28 consecutive days
                               </button>
                               <button
                                 type="button"
                                 onClick={() => updateAccountMeta(index, { manualUk28DayStatus: "NO" })}
                                 className={`rounded-lg border px-3 py-2 text-left text-sm font-semibold ${manual28DayStatus === "NO" ? "border-rose-400 bg-rose-100 text-rose-900" : "border-rose-200 bg-white text-rose-700 hover:bg-rose-50"}`}
                               >
-                                ❌ NO - The amount dropped below £{Math.round(data.summary.totalToShowInBank).toLocaleString()} at some point
+                                ❌ NO - The amount dropped below £{Math.round(computedTotalRequiredInBank).toLocaleString()} at some point
                               </button>
                             </div>
                           </div>
@@ -1660,7 +1671,7 @@ export default function ApplicationFinanceTab({ applicationId, userRole, student
                             <div className="mt-3 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800">
                               <p className="font-semibold">Statement Cancelled - 28-day rule failed</p>
                               <p className="mt-1">
-                                Your bank statement does not meet the UK 28-day rule. The required amount must remain in your account for 28 consecutive days without going below £{Math.round(data.summary.totalToShowInBank).toLocaleString()}. Please provide an updated bank statement once the 28 days have been completed.
+                                Your bank statement does not meet the UK 28-day rule. The required amount must remain in your account for 28 consecutive days without going below £{Math.round(computedTotalRequiredInBank).toLocaleString()}. Please provide an updated bank statement once the 28 days have been completed.
                               </p>
                               <p className="mt-2 font-medium">
                                 This bank account has been removed from your funding calculation. Please add a new bank account.
@@ -1879,7 +1890,7 @@ export default function ApplicationFinanceTab({ applicationId, userRole, student
           <div className="rounded-lg border border-slate-200 p-3">
             <p className="text-xs text-slate-500">Remaining Tuition Fee</p>
             <div className="mt-1 flex items-center justify-between gap-2">
-              <p className="font-medium text-slate-900">£{Math.round(data.summary.remainingTuition || 0).toLocaleString()}</p>
+              <p className="font-medium text-slate-900">£{Math.round(computedRemainingTuition).toLocaleString()}</p>
               <p className={`inline-flex items-center gap-1 font-semibold ${fundAllocation.course.complete ? "text-emerald-700" : "text-red-700"}`}>
                 {fundAllocation.course.complete ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
                 {fundAllocation.course.complete
