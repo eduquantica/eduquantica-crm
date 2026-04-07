@@ -690,8 +690,8 @@ export default function StudentProfilePage() {
     try {
       const fd = new FormData();
       fd.append("files", fileToUpload);
-      const uploadRes = await fetch("/api/upload", { method: "POST", body: fd });
-      const uploadJson = await uploadRes.json() as { urls?: string[]; error?: string; message?: string };
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: fd, credentials: "include" });
+      const uploadJson = await uploadRes.json() as { urls?: string[]; error?: string; message?: string; detail?: string };
       if (!uploadRes.ok || !uploadJson.urls?.[0]) {
         throw new Error(uploadJson.error || "Upload failed");
       }
