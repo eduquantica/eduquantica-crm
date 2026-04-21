@@ -181,7 +181,7 @@ export default function StudentCoursesEligibilityPage() {
         throw new Error(json.error || "Failed to create application");
       }
 
-      setAppliedCourseIds((prev) => new Set([...prev, courseId]));
+      setAppliedCourseIds((prev) => new Set([...Array.from(prev), courseId]));
       router.push(`/student/applications/${json.data.application.id}`);
     } catch (err) {
       setActionMessage(err instanceof Error ? err.message : "Failed to apply");
