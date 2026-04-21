@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check } from "lucide-react";
 import ChecklistUploadZone from "@/components/ui/ChecklistUploadZone";
 import DocumentPreviewModal from "@/components/shared/DocumentPreviewModal";
-import { toApiFilesDownloadPath, toApiFilesPath } from "@/lib/file-url";
+import { toApiFilesDownloadPath } from "@/lib/file-url";
 
 type DeleteTarget = {
   sourceType: "DOCUMENT" | "TEST_SCORE" | "WRITTEN_DOCUMENT";
