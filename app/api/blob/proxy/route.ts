@@ -1,4 +1,3 @@
-import { head } from "@vercel/blob";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
@@ -24,14 +23,22 @@ export async function GET(req: Request) {
   }
 
   try {
-    const blobMeta = await head(url, { token });
-    const blobRes = await fetch(blobMeta.downloadUrl);
+    // Private Vercel blobs require the token in the Authorization header
+    const blobRes = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
 
     if (!blobRes.ok) {
+      console.error("[/api/blob/proxy GET] blob fetch failed", {
+        status: blobRes.status,
+        url,
+      });
       return new Response("Failed to fetch blob content", { status: blobRes.status });
     }
 
-    const contentType = blobMeta.contentType || "application/octet-stream";
+    const contentType = blobRes.headers.get("Content-Type") || "application/octet-stream";
     const rawName = url.split("/").pop()?.split("?")[0] || "document";
     const fileName = decodeURIComponent(rawName);
     const disposition = download
