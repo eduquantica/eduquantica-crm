@@ -71,6 +71,7 @@ export default function StudentCoursesEligibilityPage() {
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   const [wishlistIds, setWishlistIds] = useState<Set<string>>(new Set());
+  const [appliedCourseIds, setAppliedCourseIds] = useState<Set<string>>(new Set());
   const [savingWishlistId, setSavingWishlistId] = useState<string | null>(null);
   const [applyingCourseId, setApplyingCourseId] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
@@ -86,9 +87,10 @@ export default function StudentCoursesEligibilityPage() {
       if (openForNationality) params.set("openForNationality", "1");
       if (deadlineNotPassed) params.set("deadlineNotPassed", "1");
 
-      const [eligibilityRes, wishlistRes] = await Promise.all([
+      const [eligibilityRes, wishlistRes, applicationsRes] = await Promise.all([
         fetch(`/api/student/courses/eligibility?${params.toString()}`, { cache: "no-store" }),
         fetch("/api/student/wishlist", { cache: "no-store" }),
+        fetch("/api/student/applications", { cache: "no-store" }),
       ]);
 
       const eligibilityJson = await eligibilityRes.json() as EligibilityResponse | { error: string };
@@ -101,9 +103,12 @@ export default function StudentCoursesEligibilityPage() {
         throw new Error(wishlistJson.error || "Failed to load wishlist");
       }
 
+      const applicationsJson = await applicationsRes.json() as { data?: Array<{ course: { id: string } }> };
+
       setCourses(eligibilityJson.data.courses);
       setAcademicComplete(eligibilityJson.data.academicProfileComplete);
       setWishlistIds(new Set(wishlistJson.data?.courseIds || []));
+      setAppliedCourseIds(new Set((applicationsJson.data || []).map((a) => a.course.id)));
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load courses");
@@ -176,6 +181,7 @@ export default function StudentCoursesEligibilityPage() {
         throw new Error(json.error || "Failed to create application");
       }
 
+      setAppliedCourseIds((prev) => new Set([...prev, courseId]));
       router.push(`/student/applications/${json.data.application.id}`);
     } catch (err) {
       setActionMessage(err instanceof Error ? err.message : "Failed to apply");
@@ -485,14 +491,20 @@ export default function StudentCoursesEligibilityPage() {
                       >
                         View Details
                       </Link>
-                      <button
-                        onClick={() => applyNow(course.id)}
-                        disabled={applyingCourseId === course.id}
-                        className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-[#1E3A5F] to-[#2f6797] px-3 py-2 text-xs font-semibold text-white shadow-sm hover:opacity-95 dark:from-[#F5A623] dark:to-[#d48b0b] dark:text-slate-900 disabled:opacity-60"
-                      >
-                        {applyingCourseId === course.id && <Loader2 className="h-4 w-4 animate-spin" />}
-                        Apply Now
-                      </button>
+                      {appliedCourseIds.has(course.id) ? (
+                        <span className="inline-flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50/80 px-3 py-2 text-xs font-semibold text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-950/30 dark:text-emerald-300">
+                          Already Applied
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => applyNow(course.id)}
+                          disabled={applyingCourseId === course.id}
+                          className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-[#1E3A5F] to-[#2f6797] px-3 py-2 text-xs font-semibold text-white shadow-sm hover:opacity-95 dark:from-[#F5A623] dark:to-[#d48b0b] dark:text-slate-900 disabled:opacity-60"
+                        >
+                          {applyingCourseId === course.id && <Loader2 className="h-4 w-4 animate-spin" />}
+                          Apply Now
+                        </button>
+                      )}
                     </div>
                   </article>
                 );

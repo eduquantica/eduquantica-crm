@@ -463,14 +463,23 @@ export default function StudentCourseDetailPage() {
             )}
           </section>
 
-          <button
-            onClick={applyNow}
-            disabled={applying}
-            className="hidden w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#1E3A5F] to-[#2f6797] px-4 py-2 text-sm font-semibold text-white shadow-md hover:opacity-95 dark:from-[#F5A623] dark:to-[#d48b0b] dark:text-slate-900 disabled:opacity-60 lg:inline-flex"
-          >
-            {applying && <Loader2 className="h-4 w-4 animate-spin" />}
-            Apply Now
-          </button>
+          {payload.activeApplication ? (
+            <Link
+              href={`/student/applications/${payload.activeApplication.id}`}
+              className="hidden w-full items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50/80 px-4 py-2 text-sm font-semibold text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-950/30 dark:text-emerald-300 lg:inline-flex"
+            >
+              Already Applied — View Application
+            </Link>
+          ) : (
+            <button
+              onClick={applyNow}
+              disabled={applying}
+              className="hidden w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#1E3A5F] to-[#2f6797] px-4 py-2 text-sm font-semibold text-white shadow-md hover:opacity-95 dark:from-[#F5A623] dark:to-[#d48b0b] dark:text-slate-900 disabled:opacity-60 lg:inline-flex"
+            >
+              {applying && <Loader2 className="h-4 w-4 animate-spin" />}
+              Apply Now
+            </button>
+          )}
         </aside>
       </div>
 
@@ -517,14 +526,23 @@ export default function StudentCourseDetailPage() {
           >
             {savingWishlist ? <Loader2 className="h-4 w-4 animate-spin" /> : <Heart className={`h-4 w-4 ${isWishlisted ? "fill-current" : ""}`} />}
           </button>
-          <button
-            onClick={applyNow}
-            disabled={applying}
-            className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#1E3A5F] to-[#2f6797] px-4 text-sm font-semibold text-white dark:from-[#F5A623] dark:to-[#d48b0b] dark:text-slate-900 disabled:opacity-60"
-          >
-            {applying && <Loader2 className="h-4 w-4 animate-spin" />}
-            Apply Now
-          </button>
+          {payload.activeApplication ? (
+            <Link
+              href={`/student/applications/${payload.activeApplication.id}`}
+              className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50/80 px-4 text-sm font-semibold text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-950/30 dark:text-emerald-300"
+            >
+              Already Applied — View Application
+            </Link>
+          ) : (
+            <button
+              onClick={applyNow}
+              disabled={applying}
+              className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#1E3A5F] to-[#2f6797] px-4 text-sm font-semibold text-white dark:from-[#F5A623] dark:to-[#d48b0b] dark:text-slate-900 disabled:opacity-60"
+            >
+              {applying && <Loader2 className="h-4 w-4 animate-spin" />}
+              Apply Now
+            </button>
+          )}
         </div>
       </div>
     </main>
