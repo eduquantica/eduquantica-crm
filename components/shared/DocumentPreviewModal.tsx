@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { toApiFilesDownloadPath, toApiFilesPath } from "@/lib/file-url";
-import { getBlobUrl } from "@/lib/getBlobUrl";
 
 type Props = {
   fileUrl: string;
@@ -30,21 +29,9 @@ export default function DocumentPreviewModal({ fileUrl, fileName, onClose }: Pro
   const isImage = ["jpg", "jpeg", "png", "webp", "heic", "gif"].includes(ext);
 
   useEffect(() => {
-    let mounted = true;
-
-    const previewPath = toApiFilesPath(fileUrl);
-    const downloadPath = toApiFilesDownloadPath(fileUrl);
-    setResolvedUrl(previewPath);
-    setDownloadUrl(downloadPath);
+    setResolvedUrl(toApiFilesPath(fileUrl));
+    setDownloadUrl(toApiFilesDownloadPath(fileUrl));
     setImageBroken(false);
-
-    if (previewPath.startsWith("/api/blob/signed-url?") || downloadPath.startsWith("/api/blob/signed-url?")) {
-      void getBlobUrl(fileUrl).then((signedUrl) => {
-        if (!mounted || !signedUrl) return;
-        setResolvedUrl(signedUrl);
-        setDownloadUrl(signedUrl);
-      });
-    }
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -54,7 +41,6 @@ export default function DocumentPreviewModal({ fileUrl, fileName, onClose }: Pro
 
     window.addEventListener("keydown", onKeyDown);
     return () => {
-      mounted = false;
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [fileUrl, onClose]);

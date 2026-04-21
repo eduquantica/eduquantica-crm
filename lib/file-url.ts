@@ -28,7 +28,7 @@ function isVercelBlobUrl(input: string) {
 
 function toSignedBlobPath(inputUrl: string, download = false) {
   const encoded = encodeURIComponent(inputUrl);
-  return `/api/blob/signed-url?url=${encoded}${download ? "&download=1" : ""}`;
+  return `/api/blob/proxy?url=${encoded}${download ? "&download=1" : ""}`;
 }
 
 export function toApiFilesPath(inputUrl: string | null | undefined): string {
@@ -76,6 +76,11 @@ export function toApiFilesDownloadPath(inputUrl: string | null | undefined): str
   const source = String(inputUrl || "").trim();
   if (isVercelBlobUrl(source)) {
     return toSignedBlobPath(source, true);
+  }
+
+  // Already a proxy path without download flag — add it
+  if (source.startsWith("/api/blob/proxy?") && !source.includes("&download=1")) {
+    return `${source}&download=1`;
   }
 
   const resolved = toApiFilesPath(inputUrl);

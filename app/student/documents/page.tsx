@@ -394,7 +394,7 @@ export default function StudentDocumentsPage() {
         <h2 className="text-lg font-semibold text-slate-900">Smart Checklist</h2>
         <div className="mt-4 space-y-3">
           {requiredChecklist.map((item) => {
-            const itemUrl = item.fileUrl ? toApiFilesPath(item.fileUrl) : "";
+            const itemUrl = item.fileUrl ?? "";
             const targetKey = item.deleteTarget ? `${item.deleteTarget.sourceType}:${item.deleteTarget.sourceId}` : null;
             const isPassportItem = item.documentType === "PASSPORT";
             const badgeClass = isPassportItem
@@ -508,7 +508,7 @@ export default function StudentDocumentsPage() {
         <h2 className="text-lg font-semibold text-slate-900">All Uploaded Documents</h2>
         <div className="mt-4 space-y-3">
           {uploadedDocuments.map((doc) => {
-            const resolvedUrl = toApiFilesPath(doc.fileUrl);
+            const resolvedUrl = doc.fileUrl;
             const targetKey = doc.deleteTarget ? `${doc.deleteTarget.sourceType}:${doc.deleteTarget.sourceId}` : null;
             return (
               <article key={doc.id} className="rounded-xl border border-white/40 bg-white/50 dark:border-white/10 dark:bg-white/5 p-4 backdrop-blur-sm">
