@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import ChecklistUploadZone from "@/components/ui/ChecklistUploadZone";
 import TestScoresManager from "@/components/student/TestScoresManager";
 import DocumentPreviewModal from "@/components/shared/DocumentPreviewModal";
+import StudentAcademicProfilePage from "@/app/student/profile/academic/page";
 import { toApiFilesDownloadPath } from "@/lib/file-url";
 import { COUNTRIES, DESTINATION_COUNTRIES, DIAL_CODES } from "@/lib/countries";
 
@@ -1078,15 +1079,10 @@ export default function StudentProfilePage() {
       )}
 
       {activeTab === "academic" && (
-        <section className="glass-card rounded-2xl p-5 sm:p-6">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Academic Profile</h2>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Embedded module editor from Module 18.5.</p>
-          <div className="mt-4 overflow-hidden rounded-xl border border-white/40 dark:border-white/10">
-            <iframe src="/student/profile/academic" className="h-[960px] w-full bg-white dark:bg-slate-900" title="Academic Profile" />
-          </div>
-          <Link href="/student/profile/academic" className="mt-4 inline-flex h-11 items-center rounded-xl border border-white/50 bg-white/70 px-4 text-sm font-semibold text-slate-700 backdrop-blur-sm hover:bg-white dark:border-white/10 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-900">Open in full page</Link>
+        <div>
+          <StudentAcademicProfilePage />
           {renderTabActions("academic", false)}
-        </section>
+        </div>
       )}
 
       {activeTab === "work" && (
