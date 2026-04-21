@@ -283,7 +283,7 @@ export async function PATCH(
       }).catch(() => undefined);
 
       const requiredMilestones = requiredMilestonesForStatus(payload.status);
-      if (requiredMilestones.length > 0) {
+      if (!isAdminOrManager && requiredMilestones.length > 0) {
         const existingMilestones = await tx.applicationMilestoneDocument.findMany({
           where: {
             applicationId: params.id,
