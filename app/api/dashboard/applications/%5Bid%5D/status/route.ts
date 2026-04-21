@@ -157,27 +157,31 @@ export async function PATCH(
       return NextResponse.json({ error: "You are not allowed to set this status" }, { status: 403 });
     }
 
-    if (requiresNotes(payload.status, payload.visaSubStatus as VisaSubStatus | undefined) && !payload.notes?.trim()) {
-      return NextResponse.json({ error: "Notes are required for this status" }, { status: 400 });
+    const isAdminOrManager = user.role.name === "ADMIN" || user.role.name === "MANAGER";
+
+    if (!isAdminOrManager) {
+      if (requiresNotes(payload.status, payload.visaSubStatus as VisaSubStatus | undefined) && !payload.notes?.trim()) {
+        return NextResponse.json({ error: "Notes are required for this status" }, { status: 400 });
+      }
+
+      if (payload.status === "CONDITIONAL_OFFER" && !payload.offerConditions?.trim()) {
+        return NextResponse.json({ error: "Offer conditions are required" }, { status: 400 });
+      }
+
+      if (payload.status === "CAS_ISSUED" && !payload.casNumber?.trim()) {
+        return NextResponse.json({ error: "CAS number is required" }, { status: 400 });
+      }
+
+      if (payload.status === "VISA_APPLIED" && payload.visaSubStatus === "VISA_REJECTED" && !payload.visaRejectionReason?.trim()) {
+        return NextResponse.json({ error: "Visa rejection reason is required" }, { status: 400 });
+      }
+
+      if (payload.status === "WITHDRAWN" && !payload.withdrawalReason?.trim()) {
+        return NextResponse.json({ error: "Withdrawal reason is required" }, { status: 400 });
+      }
     }
 
-    if (payload.status === "CONDITIONAL_OFFER" && !payload.offerConditions?.trim()) {
-      return NextResponse.json({ error: "Offer conditions are required" }, { status: 400 });
-    }
-
-    if (payload.status === "CAS_ISSUED" && !payload.casNumber?.trim()) {
-      return NextResponse.json({ error: "CAS number is required" }, { status: 400 });
-    }
-
-    if (payload.status === "VISA_APPLIED" && payload.visaSubStatus === "VISA_REJECTED" && !payload.visaRejectionReason?.trim()) {
-      return NextResponse.json({ error: "Visa rejection reason is required" }, { status: 400 });
-    }
-
-    if (payload.status === "WITHDRAWN" && !payload.withdrawalReason?.trim()) {
-      return NextResponse.json({ error: "Withdrawal reason is required" }, { status: 400 });
-    }
-
-    if (payload.status !== "APPLIED" && payload.status !== "WITHDRAWN") {
+    if (!isAdminOrManager && payload.status !== "APPLIED" && payload.status !== "WITHDRAWN") {
       const feeCleared = await isApplicationFeeCleared(params.id);
       if (!feeCleared) {
         return NextResponse.json(
@@ -224,7 +228,7 @@ export async function PATCH(
 
     const currentStatusIndex = statusIndex(application.status);
     const targetStatusIndex = statusIndex(payload.status);
-    if (targetStatusIndex > currentStatusIndex + 1 && payload.status !== "WITHDRAWN") {
+    if (!isAdminOrManager && targetStatusIndex > currentStatusIndex + 1 && payload.status !== "WITHDRAWN") {
       return NextResponse.json({ error: "Status must follow timeline sequence" }, { status: 400 });
     }
 

@@ -248,7 +248,17 @@ export default function ApplicationsClient() {
           body: JSON.stringify({ status: newStatus }),
         }
       );
-      if (!res.ok) throw new Error("Failed to update status");
+      if (!res.ok) {
+        let message = "Failed to update status";
+        try {
+          const body = await res.json();
+          if (typeof body?.error === "string") message = body.error;
+          else if (Array.isArray(body?.error)) message = body.error.map((e: { message?: string }) => e.message).join(", ");
+        } catch {
+          // ignore parse error
+        }
+        throw new Error(message);
+      }
       return res.json();
     },
     onSuccess: () => {

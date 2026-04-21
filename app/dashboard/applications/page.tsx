@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import ApplicationsClient from "./ApplicationsClient";
 
 export const metadata = {
@@ -6,5 +7,9 @@ export const metadata = {
 };
 
 export default function ApplicationsPage() {
-  return <ApplicationsClient />;
+  return (
+    <Suspense fallback={<div className="flex h-full items-center justify-center p-8 text-slate-500">Loading applications…</div>}>
+      <ApplicationsClient />
+    </Suspense>
+  );
 }
