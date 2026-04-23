@@ -27,12 +27,14 @@ function buildWhere(isCounsellor: boolean, userId: string, p: URLSearchParams): 
 
   const search = p.get("search")?.trim();
   if (search) {
+    const studentNumberQuery = parseInt(search, 10);
     and.push({
       OR: [
         { firstName: { contains: search, mode: "insensitive" } },
         { lastName: { contains: search, mode: "insensitive" } },
         { email: { contains: search, mode: "insensitive" } },
         { id: { contains: search } },
+        ...(!isNaN(studentNumberQuery) ? [{ studentNumber: studentNumberQuery }] : []),
       ],
     });
   }

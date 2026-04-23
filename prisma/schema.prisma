@@ -729,6 +729,7 @@ model LeadAllocation {
 
 model Student {
   id                   String    @id @default(cuid())
+  studentNumber        Int?      @unique
   userId               String    @unique
   user                 User      @relation(fields: [userId], references: [id])
   assignedCounsellorId String?
@@ -902,6 +903,7 @@ model Course {
 
 model Application {
   id              String            @id @default(cuid())
+  applicationRef  String?           @unique
   studentId       String
   student         Student           @relation(fields: [studentId], references: [id])
   courseId        String

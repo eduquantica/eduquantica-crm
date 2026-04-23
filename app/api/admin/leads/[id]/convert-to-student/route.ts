@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { sendMail } from "@/lib/email";
 import { randomBytes } from "crypto";
+import { generateStudentNumber } from "@/lib/generateIds";
 
 export async function POST(
   req: NextRequest,
@@ -74,9 +75,11 @@ export async function POST(
     // Create Student record
     // shape matches unchecked create input; avoid strict typing to sidestep
     // StudentCreateInput requirements (it prefers nested user relation).
+    const studentNumber = await generateStudentNumber();
     const newStudent = await db.student.create({
       data: {
         userId: newUser.id,
+        studentNumber,
         firstName: lead.firstName,
         lastName: lead.lastName,
         email: lead.email.toLowerCase(),

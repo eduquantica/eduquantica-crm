@@ -15,12 +15,14 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const q = searchParams.get("q") || "";
 
+    const studentNumberQuery = q ? parseInt(q, 10) : NaN;
     const students = await db.student.findMany({
       where: {
         OR: [
           { firstName: { contains: q, mode: "insensitive" } },
           { lastName: { contains: q, mode: "insensitive" } },
           { email: { contains: q, mode: "insensitive" } },
+          ...(!isNaN(studentNumberQuery) ? [{ studentNumber: studentNumberQuery }] : []),
         ],
       },
       orderBy: { createdAt: "desc" },
@@ -33,6 +35,7 @@ export async function GET(req: NextRequest) {
         const pct = await calculateProfileCompletion(s.id);
         return {
           id: s.id,
+          studentNumber: s.studentNumber,
           firstName: s.firstName,
           lastName: s.lastName,
           email: s.email,

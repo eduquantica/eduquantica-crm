@@ -6,6 +6,7 @@ import { randomBytes } from "crypto";
 import { sendMail } from "@/lib/email";
 import { calculateProfileCompletion } from "@/lib/profile-completion";
 import { StudyGapCalculator } from "@/lib/study-gap";
+import { generateStudentNumber } from "@/lib/generateIds";
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -49,11 +50,13 @@ export async function POST(req: Request) {
     },
   });
 
+  const studentNumber = await generateStudentNumber();
   // use any for the payload to avoid mismatches with the strict generated type
   // (which expects nested relation create for user rather than userId).
   const newStudent = await db.student.create({
     data: {
       userId: newUser.id,
+      studentNumber,
       firstName: firstName || "",
       lastName: lastName || "",
       email,

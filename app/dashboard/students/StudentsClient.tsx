@@ -15,6 +15,7 @@ import StudyGapIndicator from "@/components/ui/StudyGapIndicator";
 
 interface StudentRow {
   id: string;
+  studentNumber?: number | null;
   firstName: string;
   lastName: string;
   email: string;
@@ -248,7 +249,7 @@ export default function StudentsClient({
               type="text"
               value={filters.search}
               onChange={(e) => updateFilter("search", e.target.value)}
-              placeholder="Search name, email or ID…"
+              placeholder="Search name, email or student number…"
               className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
             />
           </div>
@@ -390,7 +391,7 @@ export default function StudentsClient({
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-3">EQ-STU-{s.id}</td>
+                  <td className="px-4 py-3">{s.studentNumber ?? "—"}</td>
                   <td className="px-4 py-3">{s.email}</td>
                   <td className="px-4 py-3">{s.phone || ""}</td>
                   <td className="px-4 py-3">{s.nationality}</td>

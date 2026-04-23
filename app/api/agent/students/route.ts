@@ -8,6 +8,7 @@ import { randomBytes } from "crypto";
 import { sendMail } from "@/lib/email";
 import { calculateProfileCompletion } from "@/lib/profile-completion";
 import { ApplicationStatus } from "@prisma/client";
+import { generateStudentNumber } from "@/lib/generateIds";
 import { StudyGapCalculator } from "@/lib/study-gap";
 import { normalizeCountryCode } from "@/lib/financial-requirements";
 
@@ -67,6 +68,7 @@ export async function GET(req: NextRequest) {
               OR: [
                 { firstName: { contains: search, mode: "insensitive" } },
                 { lastName: { contains: search, mode: "insensitive" } },
+                ...(!isNaN(parseInt(search, 10)) ? [{ studentNumber: parseInt(search, 10) }] : []),
               ],
             }
           : {}),
@@ -201,9 +203,11 @@ export async function POST(req: NextRequest) {
         },
       });
 
+      const studentNumber = await generateStudentNumber();
       const student = await tx.student.create({
         data: {
           userId: user.id,
+          studentNumber,
           firstName: payload.firstName,
           lastName: payload.lastName,
           email,

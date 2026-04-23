@@ -5,6 +5,7 @@ import { normalizeCountryCode } from "@/lib/financial-requirements";
 import { ApplicationStatus } from "@prisma/client";
 import { z } from "zod";
 import { ensureFeePaymentForApplication, getApplicationFeeSummary } from "@/lib/application-fees";
+import { generateApplicationRef } from "@/lib/generateIds";
 
 const createApplicationSchema = z.object({
   studentId: z.string().min(1),
@@ -92,6 +93,7 @@ export async function GET(req: NextRequest) {
 
     // Search filter (student name, university name, or application ID)
     if (searchQuery) {
+      const studentNumberQuery = parseInt(searchQuery, 10);
       where.OR = [
         {
           student: {
@@ -109,8 +111,11 @@ export async function GET(req: NextRequest) {
           },
         },
         {
-          id: { contains: searchQuery, mode: "insensitive" },
+          applicationRef: { contains: searchQuery, mode: "insensitive" },
         },
+        ...(!isNaN(studentNumberQuery)
+          ? [{ student: { studentNumber: studentNumberQuery } }]
+          : []),
       ];
     }
 
@@ -275,8 +280,10 @@ export async function POST(req: NextRequest) {
     const isUndergraduate = level.includes("undergraduate") || level.startsWith("ug");
     const applyUcas = requestedUcas && isUndergraduate;
 
+    const applicationRef = await generateApplicationRef();
     const created = await db.application.create({
       data: {
+        applicationRef,
         studentId,
         courseId,
         universityId,

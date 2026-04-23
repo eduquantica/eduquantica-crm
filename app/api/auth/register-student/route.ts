@@ -5,6 +5,7 @@ import { z } from "zod";
 import { getNextCounsellor } from "@/lib/counsellor";
 import { sendResendEmail } from "@/lib/resend";
 import { NotificationService } from "@/lib/notifications";
+import { generateStudentNumber } from "@/lib/generateIds";
 
 const schema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -74,9 +75,11 @@ export async function POST(req: NextRequest) {
         },
       });
 
+      const studentNumber = await generateStudentNumber();
       const student = await tx.student.create({
         data: {
           userId: user.id,
+          studentNumber,
           firstName: data.firstName,
           lastName: data.lastName,
           email: data.email.toLowerCase(),

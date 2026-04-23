@@ -18,10 +18,12 @@ import { toast } from "sonner";
 
 interface Application {
   id: string;
+  applicationRef?: string | null;
   studentId: string;
   student: {
     firstName: string;
     lastName: string;
+    studentNumber?: number | null;
     subAgentId?: string;
     subAgent?: { agencyName: string };
     assignedCounsellorId?: string;
@@ -396,7 +398,7 @@ export default function ApplicationsClient() {
             <Search className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" />
             <input
               type="text"
-              placeholder="Search by student name, university, or application ID..."
+              placeholder="Search by name, university, application ref or student number…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -775,7 +777,13 @@ function ApplicationCard({
       <div className="space-y-2">
         <div className="font-semibold text-gray-900 text-sm">
           {application.student.firstName} {application.student.lastName}
+          {application.student.studentNumber && (
+            <span className="ml-1 text-xs text-gray-400 font-mono font-normal">#{application.student.studentNumber}</span>
+          )}
         </div>
+        {application.applicationRef && (
+          <div className="text-xs font-mono text-blue-600">{application.applicationRef}</div>
+        )}
 
         <div className="text-sm text-gray-600">
           <div>{application.course.university.name}</div>
@@ -935,10 +943,13 @@ function TableView({
                   />
                 </td>
                 <td className="px-6 py-4 text-sm font-mono text-gray-900">
-                  {app.id}
+                  {app.applicationRef ?? app.id}
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-900">
                   {app.student.firstName} {app.student.lastName}
+                  {app.student.studentNumber && (
+                    <div className="text-xs text-gray-400 font-mono">{app.student.studentNumber}</div>
+                  )}
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-600">
                   {app.course.university.name}
