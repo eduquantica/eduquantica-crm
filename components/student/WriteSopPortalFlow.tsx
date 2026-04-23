@@ -1,7 +1,7 @@
 "use client";
 
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, ArrowLeft, Download, Eye, Pencil, ShieldCheck, SpellCheck, Trash2, Upload } from "lucide-react";
+import { AlertCircle, ArrowLeft, Download, Eye, FileText, Pencil, ShieldCheck, SpellCheck, Trash2, Upload } from "lucide-react";
 import QRCodeUploadModal from "@/components/shared/QRCodeUploadModal";
 
 type SavedUpload = {
@@ -150,6 +150,10 @@ export default function WriteSopPortalFlow() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [studentId, setStudentId] = useState<string>("");
+  const [sopDocStatus, setSopDocStatus] = useState<"none" | "saved" | "verified">("none");
+  const [sopDocSavedAt, setSopDocSavedAt] = useState<string | null>(null);
+  const [savingToDocuments, setSavingToDocuments] = useState(false);
+  const [savedToDocuments, setSavedToDocuments] = useState(false);
   const [showSopQrModal, setShowSopQrModal] = useState(false);
 
   const wordCount = useMemo(() => (content.trim() ? content.trim().split(/\s+/).length : 0), [content]);
@@ -200,6 +204,8 @@ export default function WriteSopPortalFlow() {
     window.localStorage.setItem(DRAFT_VERSIONS_KEY, JSON.stringify(nextHistory));
     setMessage("Draft saved.");
     setError(null);
+    // Also persist to Documents section (non-blocking, quiet)
+    if (content.trim()) void saveToDocuments(true);
   }
 
   function loadUpload() {
@@ -257,6 +263,8 @@ export default function WriteSopPortalFlow() {
       setPendingPreviewUrl(null);
       setMessage("Upload saved.");
       setError(null);
+      // Also persist to Documents section (non-blocking)
+      void saveUploadToDocuments(pendingFile);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Failed to save upload.");
     }
@@ -561,10 +569,104 @@ export default function WriteSopPortalFlow() {
     }
   }
 
+  async function fetchSopDocStatus() {
+    try {
+      const res = await fetch("/api/student/sop/save-to-documents", { cache: "no-store" });
+      if (!res.ok) return;
+      const json = (await res.json()) as { data?: { document?: { status?: string; uploadedAt?: string } | null } };
+      const doc = json.data?.document;
+      if (!doc) {
+        setSopDocStatus("none");
+        setSopDocSavedAt(null);
+      } else if (doc.status === "VERIFIED") {
+        setSopDocStatus("verified");
+        setSopDocSavedAt(doc.uploadedAt || null);
+        setSavedToDocuments(true);
+      } else {
+        setSopDocStatus("saved");
+        setSopDocSavedAt(doc.uploadedAt || null);
+        setSavedToDocuments(true);
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  async function downloadAsPdf() {
+    if (!content.trim()) {
+      setError("Please write some content before downloading.");
+      return;
+    }
+    try {
+      const res = await fetch("/api/student/sop/download-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: typeLabel, typeLabel, content }),
+      });
+      if (!res.ok) throw new Error("Failed to generate PDF");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = window.document.createElement("a");
+      anchor.href = url;
+      anchor.download = docKind === "PERSONAL_STATEMENT" ? "Personal-Statement.pdf" : "Statement-of-Purpose.pdf";
+      anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      setMessage("PDF downloaded.");
+      setError(null);
+    } catch (downloadError) {
+      setError(downloadError instanceof Error ? downloadError.message : "Failed to download PDF.");
+    }
+  }
+
+  async function saveToDocuments(quiet = false) {
+    if (!content.trim()) {
+      if (!quiet) setError("Please write some content before saving to documents.");
+      return;
+    }
+    setSavingToDocuments(true);
+    if (!quiet) { setError(null); setMessage(null); }
+    try {
+      const res = await fetch("/api/student/sop/save-to-documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content, typeLabel, docKind }),
+      });
+      const json = (await res.json()) as { data?: { uploadedAt?: string }; error?: string };
+      if (!res.ok) throw new Error(json.error || "Failed to save to documents");
+      setSopDocStatus("saved");
+      setSopDocSavedAt(json.data?.uploadedAt || new Date().toISOString());
+      setSavedToDocuments(true);
+      if (!quiet) setMessage("SOP saved to your Documents successfully.");
+    } catch (saveError) {
+      if (!quiet) setError(saveError instanceof Error ? saveError.message : "Failed to save to documents.");
+    } finally {
+      setSavingToDocuments(false);
+    }
+  }
+
+  async function saveUploadToDocuments(file: File) {
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/student/sop/upload-to-documents", {
+        method: "POST",
+        body: formData,
+      });
+      const json = (await res.json()) as { data?: { uploadedAt?: string }; error?: string };
+      if (!res.ok) throw new Error(json.error || "Failed to save to documents");
+      setSopDocStatus("saved");
+      setSopDocSavedAt(json.data?.uploadedAt || new Date().toISOString());
+      setSavedToDocuments(true);
+    } catch {
+      // non-blocking: upload to documents is best-effort alongside local save
+    }
+  }
+
   useEffect(() => {
     loadDraft();
     loadUpload();
     loadVersionHistory();
+    void fetchSopDocStatus();
     // Fetch studentId for QR upload
     void fetch("/api/student/profile", { cache: "no-store" })
       .then((res) => res.json())
@@ -607,6 +709,25 @@ export default function WriteSopPortalFlow() {
       {view === "write" && (
         <section className="glass-card p-4 md:p-6">
           <button type="button" onClick={() => setView("select")} className="mb-4 inline-flex items-center gap-1 rounded-md border border-slate-300 dark:border-white/20 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200"><ArrowLeft className="h-4 w-4" /> Back</button>
+
+          {/* SOP Documents Status Indicator */}
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            {sopDocStatus === "none" && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                ⚠ Not yet saved to Documents — click Save to Documents to add it to your document list
+              </span>
+            )}
+            {sopDocStatus === "saved" && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                ✓ Saved in Documents{sopDocSavedAt ? ` — ${formatDateTime(sopDocSavedAt)}` : ""}
+              </span>
+            )}
+            {sopDocStatus === "verified" && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                ✓ Verified by counsellor{sopDocSavedAt ? ` — ${formatDateTime(sopDocSavedAt)}` : ""}
+              </span>
+            )}
+          </div>
 
           <div className="mb-3 inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1 text-sm">
             <button type="button" onClick={() => setDocKind("SOP")} className={docKind === "SOP" ? "rounded-md bg-white px-3 py-1.5 font-semibold text-slate-900 shadow-sm" : "rounded-md px-3 py-1.5 text-slate-600"}>Statement of Purpose</button>
@@ -713,6 +834,28 @@ export default function WriteSopPortalFlow() {
             </button>
             <button type="button" onClick={() => void checkEditorFull()} disabled={loadingFullCheck} className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-60"><ShieldCheck className="h-4 w-4" /> {loadingFullCheck ? "Checking..." : "Plagiarism and AI Detection Check"}</button>
             <button type="button" onClick={saveDraft} className="gradient-btn rounded-md px-3 py-2 text-sm font-semibold text-white">Save</button>
+            <button
+              type="button"
+              onClick={() => void downloadAsPdf()}
+              className="inline-flex items-center gap-1 rounded-md border border-slate-700 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+            >
+              <Download className="h-4 w-4" />
+              Download PDF
+            </button>
+            <button
+              type="button"
+              onClick={() => void saveToDocuments()}
+              disabled={savingToDocuments}
+              className="inline-flex items-center gap-1 rounded-md bg-amber-500 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-600 disabled:opacity-60"
+            >
+              <FileText className="h-4 w-4" />
+              {savingToDocuments ? "Saving…" : "Save to Documents"}
+            </button>
+            {savedToDocuments && !savingToDocuments && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">
+                Saved to Documents ✓
+              </span>
+            )}
             <button type="button" onClick={() => setShowVersionHistory((prev) => !prev)} className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700">Version History</button>
             {editorGrammarResult?.improvedVersion && <button type="button" onClick={applyAllFixes} className="rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white">Apply All Fixes</button>}
           </div>
@@ -829,6 +972,11 @@ export default function WriteSopPortalFlow() {
             <span className="mt-1 text-xs text-slate-500">Accepted formats: PDF, DOCX, DOC</span>
             <input type="file" className="hidden" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={handleUpload} />
           </label>
+          {sopDocStatus !== "none" && (
+            <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
+              ⚠ Uploading a new file will replace your current SOP in the Documents section.
+            </p>
+          )}
 
           {studentId && (
             <button
