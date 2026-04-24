@@ -18,6 +18,10 @@ import {
   Star,
   User,
   X,
+  Settings,
+  Mic,
+  Sparkles,
+  ChevronRight,
 } from "lucide-react";
 import NotificationsBell from "@/components/ui/NotificationsBell";
 import { cn } from "@/lib/cn";
@@ -37,51 +41,53 @@ type NavItem = {
   label: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
+  emoji: string;
   startsWith?: string[];
 };
 
 const NAV_ITEMS: NavItem[] = [
-  { label: "Home", href: "/student/dashboard", icon: Home, startsWith: ["/student/dashboard", "/student"] },
-  { label: "My Profile", href: "/student/profile", icon: User, startsWith: ["/student/profile"] },
-  { label: "Course Search", href: "/student/courses", icon: Search, startsWith: ["/student/courses"] },
-  { label: "My Wishlist", href: "/student/wishlist", icon: Heart, startsWith: ["/student/wishlist"] },
-  { label: "My Applications", href: "/student/applications", icon: FileText, startsWith: ["/student/applications"] },
-  { label: "Documents", href: "/student/documents", icon: Folder, startsWith: ["/student/documents"] },
-  { label: "My CV", href: "/student/cv-builder", icon: FileText, startsWith: ["/student/cv-builder"] },
-  { label: "Finance", href: "/student/finance", icon: Coins, startsWith: ["/student/finance"] },
-  { label: "Scholarships", href: "/student/scholarships", icon: Star, startsWith: ["/student/scholarships"] },
-  { label: "Messages", href: "/student/messages", icon: MessageCircle, startsWith: ["/student/messages"] },
-  { label: "Notifications", href: "/student/notifications", icon: Bell, startsWith: ["/student/notifications"] },
+  { label: "Home",           href: "/student/dashboard",     icon: Home,          emoji: "🏠", startsWith: ["/student/dashboard"] },
+  { label: "My Profile",     href: "/student/profile",       icon: User,          emoji: "👤", startsWith: ["/student/profile"] },
+  { label: "Course Search",  href: "/student/courses",       icon: Search,        emoji: "🔍", startsWith: ["/student/courses"] },
+  { label: "My Wishlist",    href: "/student/wishlist",      icon: Heart,         emoji: "💜", startsWith: ["/student/wishlist"] },
+  { label: "Applications",   href: "/student/applications",  icon: FileText,      emoji: "📋", startsWith: ["/student/applications"] },
+  { label: "Documents",      href: "/student/documents",     icon: Folder,        emoji: "📁", startsWith: ["/student/documents"] },
+  { label: "My CV",          href: "/student/cv-builder",    icon: FileText,      emoji: "📄", startsWith: ["/student/cv-builder"] },
+  { label: "Finance",        href: "/student/finance",       icon: Coins,         emoji: "💰", startsWith: ["/student/finance"] },
+  { label: "Scholarships",   href: "/student/scholarships",  icon: Star,          emoji: "🎓", startsWith: ["/student/scholarships"] },
+  { label: "Mock Interview", href: "/student/mock-interview",icon: Mic,           emoji: "🎤", startsWith: ["/student/mock-interview"] },
+  { label: "Messages",       href: "/student/messages",      icon: MessageCircle, emoji: "💬", startsWith: ["/student/messages"] },
+  { label: "Notifications",  href: "/student/notifications", icon: Bell,          emoji: "🔔", startsWith: ["/student/notifications"] },
 ];
 
-function pageTitle(pathname: string): string {
-  const map: Array<{ match: string; title: string }> = [
-    { match: "/student/dashboard", title: "Student Dashboard" },
-    { match: "/student/profile", title: "My Profile" },
-    { match: "/student/courses", title: "Course Search" },
-    { match: "/student/wishlist", title: "My Wishlist" },
-    { match: "/student/applications", title: "My Applications" },
-    { match: "/student/documents", title: "Documents" },
-    { match: "/student/finance", title: "Finance" },
-    { match: "/student/scholarships", title: "Scholarships" },
-    { match: "/student/messages", title: "Messages" },
-    { match: "/student/notifications", title: "Notifications" },
-    { match: "/student/settings", title: "Settings" },
-  ];
+const PAGE_TITLES: Array<{ match: string; title: string; emoji: string }> = [
+  { match: "/student/dashboard",     title: "Dashboard",      emoji: "🏠" },
+  { match: "/student/profile",       title: "My Profile",     emoji: "👤" },
+  { match: "/student/courses",       title: "Course Search",  emoji: "🔍" },
+  { match: "/student/wishlist",      title: "My Wishlist",    emoji: "💜" },
+  { match: "/student/applications",  title: "Applications",   emoji: "📋" },
+  { match: "/student/documents",     title: "Documents",      emoji: "📁" },
+  { match: "/student/cv-builder",    title: "My CV",          emoji: "📄" },
+  { match: "/student/finance",       title: "Finance",        emoji: "💰" },
+  { match: "/student/scholarships",  title: "Scholarships",   emoji: "🎓" },
+  { match: "/student/mock-interview",title: "Mock Interview", emoji: "🎤" },
+  { match: "/student/messages",      title: "Messages",       emoji: "💬" },
+  { match: "/student/notifications", title: "Notifications",  emoji: "🔔" },
+  { match: "/student/settings",      title: "Settings",       emoji: "⚙️" },
+];
 
-  const found = map.find((item) => pathname.startsWith(item.match));
-  if (found) return found.title;
-  return "Student Portal";
+function getPageMeta(pathname: string) {
+  return PAGE_TITLES.find((p) => pathname.startsWith(p.match)) ?? { title: "Student Portal", emoji: "✨" };
 }
 
-function completionBarClass(percentage: number): string {
-  if (percentage === 100) return "bg-emerald-500";
-  if (percentage >= 70) return "bg-blue-500";
-  if (percentage >= 40) return "bg-amber-400";
-  return "bg-red-500";
+function completionColor(pct: number) {
+  if (pct === 100) return "#10b981";
+  if (pct >= 70) return "#8b5cf6";
+  if (pct >= 40) return "#f59e0b";
+  return "#ef4444";
 }
 
-function initials(name: string): string {
+function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "ST";
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
@@ -102,227 +108,246 @@ export default function StudentPortalShell({
   const [menuOpen, setMenuOpen] = useState(false);
   const [bannerVisible, setBannerVisible] = useState(profileCompletion < 70);
   const menuRef = useRef<HTMLDivElement | null>(null);
-
   const dismissKey = `student-profile-banner-dismissed-until-${studentId}`;
 
   useEffect(() => {
-    const onClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setMenuOpen(false);
-      }
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
     };
-
-    document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, []);
 
   useEffect(() => {
     const raw = window.localStorage.getItem(dismissKey);
     const hiddenUntil = raw ? Number(raw) : 0;
-    const now = Date.now();
-    if (profileCompletion < 70 && hiddenUntil <= now) {
-      setBannerVisible(true);
-    } else {
-      setBannerVisible(false);
-    }
+    setBannerVisible(profileCompletion < 70 && hiddenUntil <= Date.now());
   }, [dismissKey, profileCompletion]);
 
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
+  useEffect(() => { setMobileOpen(false); }, [pathname]);
 
-  const title = useMemo(() => pageTitle(pathname), [pathname]);
+  const pageMeta = useMemo(() => getPageMeta(pathname), [pathname]);
 
   function isActive(item: NavItem) {
     const patterns = item.startsWith || [item.href];
-    return patterns.some((pattern) => pathname === pattern || pathname.startsWith(pattern));
+    return patterns.some((p) => pathname === p || pathname.startsWith(p));
   }
 
   function dismissBannerFor24h() {
-    const until = Date.now() + 24 * 60 * 60 * 1000;
-    window.localStorage.setItem(dismissKey, String(until));
+    window.localStorage.setItem(dismissKey, String(Date.now() + 86400000));
     setBannerVisible(false);
   }
 
   function SidebarContent() {
     return (
-      <div className="flex h-full flex-col bg-white">
-        <div className="border-b border-slate-200 px-4 py-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">EduQuantica</p>
-          <p className="mt-1 text-lg font-bold text-[#1E3A5F]">Student Portal</p>
-          <div className="mt-3">
-            <div className="flex items-center justify-between">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Profile Completion</p>
-              <p className="text-xs font-semibold text-slate-700">{profileCompletion}%</p>
+      <div className="flex h-full flex-col" style={{ background: "linear-gradient(190deg, #2e1065 0%, #3b0764 32%, #1e1b4b 70%, #1e1b4b 100%)" }}>
+
+        {/* Brand */}
+        <div className="px-5 pt-6 pb-5">
+          <div className="flex items-center gap-2.5 mb-5">
+            <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-violet-400 to-indigo-500 flex items-center justify-center shadow-lg shadow-violet-900/40">
+              <Sparkles className="h-4 w-4 text-white" />
             </div>
-            <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-slate-200">
-              <div
-                className={cn("h-full rounded-full transition-all", completionBarClass(profileCompletion))}
-                style={{ width: `${Math.max(0, Math.min(100, profileCompletion))}%` }}
-              />
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-widest text-violet-300">EduQuantica</p>
+              <p className="text-xs text-white/50 -mt-0.5">Student Portal</p>
             </div>
           </div>
+
+          {/* Profile summary */}
+          <Link href="/student/profile" className="block rounded-2xl p-3.5 transition-all hover:bg-white/10" style={{ background: "rgba(255,255,255,0.07)" }}>
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 shrink-0 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-sm font-bold text-white shadow shadow-violet-900/40">
+                {initials(studentName)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-white">{studentName}</p>
+                <p className="truncate text-xs text-white/40">{studentEmail}</p>
+              </div>
+              <ChevronRight className="h-3.5 w-3.5 text-white/30 shrink-0" />
+            </div>
+            {/* Completion bar */}
+            <div className="mt-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] text-white/40 font-medium">Profile {profileCompletion}%</span>
+                {profileCompletion === 100 && <span className="text-[10px] text-emerald-400 font-semibold">Complete ✓</span>}
+              </div>
+              <div className="h-1.5 w-full rounded-full bg-white/10 overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-700"
+                  style={{ width: `${profileCompletion}%`, background: completionColor(profileCompletion) }}
+                />
+              </div>
+            </div>
+          </Link>
         </div>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+        {/* Nav */}
+        <nav className="flex-1 overflow-y-auto px-3 pb-4 space-y-0.5">
+          <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-widest text-white/25">Navigation</p>
           {NAV_ITEMS.map((item) => {
-            const Icon = item.icon;
             const active = isActive(item);
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium transition",
+                  "group flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
                   active
-                    ? "bg-[#1E3A5F] text-white"
-                    : "text-slate-700 hover:bg-slate-100 hover:text-[#1E3A5F]",
+                    ? "bg-white/14 text-white shadow-sm"
+                    : "text-white/55 hover:bg-white/09 hover:text-white/90 hover:translate-x-0.5",
                 )}
               >
-                <Icon className="h-4 w-4" />
-                <span>{item.label}</span>
+                <span className="text-base leading-none w-5 text-center">{item.emoji}</span>
+                <span className="flex-1">{item.label}</span>
+                {active && <div className="h-1.5 w-1.5 rounded-full bg-violet-400" />}
               </Link>
             );
           })}
         </nav>
 
-        <div className="border-t border-slate-200 p-4">
-          <Link href="/student/profile" className="block rounded-lg border border-slate-200 p-3 hover:bg-slate-50">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">My Progress</p>
-              <p className="text-xs font-semibold text-slate-700">{profileCompletion}%</p>
-            </div>
-            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-200">
-              <div
-                className={cn("h-full rounded-full transition-all", completionBarClass(profileCompletion))}
-                style={{ width: `${Math.max(0, Math.min(100, profileCompletion))}%` }}
-              />
-            </div>
+        {/* Bottom settings */}
+        <div className="px-3 pb-5 pt-2 border-t border-white/10">
+          <Link
+            href="/student/settings"
+            className="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium text-white/50 hover:bg-white/09 hover:text-white/90 transition-all"
+          >
+            <span className="text-base leading-none w-5 text-center">⚙️</span>
+            Settings
           </Link>
+          <button
+            onClick={() => void signOut({ callbackUrl: "/login" })}
+            className="mt-0.5 w-full flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium text-white/40 hover:bg-red-500/15 hover:text-red-300 transition-all"
+          >
+            <LogOut className="h-4 w-4 ml-0.5" />
+            Sign Out
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white text-slate-900">
+    <div className="min-h-screen" style={{ background: "linear-gradient(145deg, #f5f3ff 0%, #ede9fe 35%, #eef2ff 65%, #f0f9ff 100%)" }}>
       <div className="flex min-h-screen">
-        <aside className="hidden w-72 border-r border-slate-200 lg:block">
-          <SidebarContent />
+
+        {/* Desktop sidebar */}
+        <aside className="hidden w-64 shrink-0 lg:block">
+          <div className="sticky top-0 h-screen overflow-hidden">
+            <SidebarContent />
+          </div>
         </aside>
 
+        {/* Mobile drawer */}
         {mobileOpen && (
           <div className="fixed inset-0 z-50 lg:hidden">
             <button
               type="button"
               onClick={() => setMobileOpen(false)}
-              className="absolute inset-0 bg-slate-900/50"
-              aria-label="Close navigation drawer"
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              aria-label="Close"
             />
-            <div className="absolute inset-0 w-full bg-white">
-              <div className="flex h-14 items-center justify-between border-b border-slate-200 px-4">
-                <p className="text-base font-semibold text-[#1E3A5F]">Menu</p>
+            <div className="absolute left-0 top-0 bottom-0 w-72 overflow-hidden">
+              <div className="absolute top-4 right-4 z-10">
                 <button
-                  type="button"
                   onClick={() => setMobileOpen(false)}
-                  className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-200 text-slate-700"
-                  aria-label="Close menu"
+                  className="h-8 w-8 rounded-full bg-white/10 flex items-center justify-center text-white/70 hover:bg-white/20 transition"
                 >
-                  <X className="h-5 w-5" />
+                  <X className="h-4 w-4" />
                 </button>
               </div>
-              <SidebarContent />
+              <div className="h-full overflow-y-auto">
+                <SidebarContent />
+              </div>
             </div>
           </div>
         )}
 
+        {/* Main content */}
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
-            <div className="flex h-16 items-center justify-between gap-3 px-4 sm:px-6">
+
+          {/* Topbar */}
+          <header className="sticky top-0 z-30 border-b border-violet-100/60 backdrop-blur-xl" style={{ background: "rgba(250,248,255,0.88)" }}>
+            <div className="flex h-14 items-center justify-between gap-3 px-4 sm:px-6">
               <div className="flex min-w-0 items-center gap-3">
                 <button
                   type="button"
                   onClick={() => setMobileOpen(true)}
-                  className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-200 text-slate-700 lg:hidden"
+                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-violet-100 bg-white/70 text-violet-700 lg:hidden hover:bg-violet-50 transition"
                   aria-label="Open menu"
                 >
-                  <Menu className="h-5 w-5" />
+                  <Menu className="h-4 w-4" />
                 </button>
-                <h1 className="truncate text-lg font-semibold text-[#1E3A5F]">{title}</h1>
+                <h1 className="truncate text-base font-bold text-slate-900">
+                  <span className="mr-1.5">{pageMeta.emoji}</span>
+                  {pageMeta.title}
+                </h1>
               </div>
 
-              <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex items-center gap-2">
                 <NotificationsBell />
 
                 <div className="relative" ref={menuRef}>
                   <button
                     type="button"
-                    onClick={() => setMenuOpen((value) => !value)}
-                    className="flex h-11 items-center gap-2 rounded-lg border border-slate-200 px-2.5 hover:bg-slate-50"
-                    aria-label="Open account menu"
+                    onClick={() => setMenuOpen((v) => !v)}
+                    className="flex h-9 items-center gap-2 rounded-xl border border-violet-100 bg-white/70 px-2 hover:bg-violet-50 transition"
                   >
-                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#1E3A5F] text-xs font-semibold text-white">
+                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 text-[11px] font-bold text-white shadow shadow-violet-200">
                       {initials(studentName)}
                     </span>
-                    <span className="hidden max-w-[120px] truncate text-sm font-medium text-slate-700 sm:block">
-                      {studentName}
+                    <span className="hidden max-w-[100px] truncate text-sm font-semibold text-slate-700 sm:block">
+                      {studentName.split(" ")[0]}
                     </span>
                   </button>
 
                   {menuOpen && (
-                    <div className="absolute right-0 z-40 mt-2 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
-                      <div className="border-b border-slate-100 px-3 py-2">
-                        <p className="text-sm font-semibold text-slate-900">{studentName}</p>
-                        <p className="text-xs text-slate-500">{studentEmail}</p>
+                    <div className="absolute right-0 z-40 mt-2 w-52 overflow-hidden rounded-2xl border border-violet-100 bg-white shadow-xl shadow-violet-100/40">
+                      <div className="px-4 py-3 border-b border-slate-100">
+                        <p className="text-sm font-bold text-slate-900">{studentName}</p>
+                        <p className="text-xs text-slate-400 truncate">{studentEmail}</p>
                       </div>
-                      <Link
-                        href="/student/profile"
-                        className="flex h-11 items-center px-3 text-sm text-slate-700 hover:bg-slate-50"
-                        onClick={() => setMenuOpen(false)}
-                      >
-                        My Profile
-                      </Link>
-                      <Link
-                        href="/student/settings"
-                        className="flex h-11 items-center px-3 text-sm text-slate-700 hover:bg-slate-50"
-                        onClick={() => setMenuOpen(false)}
-                      >
-                        Settings
-                      </Link>
-                      <div className="border-t border-slate-100" />
-                      <button
-                        type="button"
-                        onClick={() => void signOut({ callbackUrl: "/login" })}
-                        className="flex h-11 w-full items-center gap-2 px-3 text-left text-sm text-red-500 hover:bg-red-50"
-                      >
-                        <LogOut className="h-4 w-4" />
-                        Sign Out
-                      </button>
+                      <div className="py-1">
+                        <Link href="/student/profile" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-violet-50 transition">
+                          <User className="h-3.5 w-3.5 text-violet-500" /> My Profile
+                        </Link>
+                        <Link href="/student/settings" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-violet-50 transition">
+                          <Settings className="h-3.5 w-3.5 text-violet-500" /> Settings
+                        </Link>
+                      </div>
+                      <div className="border-t border-slate-100 py-1">
+                        <button
+                          onClick={() => void signOut({ callbackUrl: "/login" })}
+                          className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-rose-500 hover:bg-rose-50 transition"
+                        >
+                          <LogOut className="h-3.5 w-3.5" /> Sign Out
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
             </div>
 
+            {/* Profile completion banner */}
             {profileCompletion < 70 && bannerVisible && (
-              <div className="border-t border-blue-100 bg-blue-50 px-4 py-3 sm:px-6">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-sm text-blue-900">
-                    Your profile is <strong>{profileCompletion}%</strong> complete. Complete your profile to unlock course recommendations.
+              <div className="border-t border-violet-100 px-4 py-2.5 sm:px-6" style={{ background: "rgba(237,233,254,0.85)" }}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm text-violet-900">
+                    ✨ Your profile is <strong>{profileCompletion}%</strong> complete — finish it to unlock personalised course matches.
                   </p>
                   <div className="flex items-center gap-2">
                     <Link
                       href={firstIncompleteHref}
-                      className="inline-flex h-11 items-center rounded-lg bg-[#1E3A5F] px-4 text-sm font-semibold text-white hover:opacity-95"
+                      className="inline-flex h-8 items-center rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-4 text-xs font-bold text-white hover:opacity-90 transition shadow shadow-violet-200"
                     >
-                      Complete Now
+                      Finish Profile →
                     </Link>
                     <button
-                      type="button"
                       onClick={dismissBannerFor24h}
-                      className="inline-flex h-11 items-center rounded-lg border border-blue-200 bg-white px-4 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+                      className="inline-flex h-8 items-center rounded-xl border border-violet-200 bg-white px-3 text-xs font-semibold text-violet-600 hover:bg-violet-50 transition"
                     >
-                      Dismiss
+                      Later
                     </button>
                   </div>
                 </div>
@@ -335,6 +360,7 @@ export default function StudentPortalShell({
           </main>
         </div>
       </div>
+
       <StudentFloatingChatButton unreadCount={unreadEduviCount} />
     </div>
   );
