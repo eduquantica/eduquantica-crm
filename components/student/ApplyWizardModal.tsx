@@ -64,7 +64,6 @@ type Props = {
 };
 
 const STEPS = ["Intakes", "Prerequisites", "Backups", "What to Expect"] as const;
-type Step = (typeof STEPS)[number];
 
 function money(amount: number | null | undefined, currency: string) {
   if (!amount) return "Free";
