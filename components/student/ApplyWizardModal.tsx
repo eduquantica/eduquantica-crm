@@ -4,22 +4,26 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   X,
-  ChevronRight,
-  ChevronLeft,
   CheckCircle2,
   AlertTriangle,
   Clock,
-  Info,
   Loader2,
+  Sparkles,
+  CalendarDays,
+  GraduationCap,
+  BookOpen,
+  Rocket,
+  MapPin,
+  Zap,
+  TrendingUp,
+  ArrowRight,
+  ChevronLeft,
+  BadgeCheck,
+  CircleAlert,
 } from "lucide-react";
 import { toast } from "sonner";
 
-type IntakeOption = {
-  date: string;
-  deadline?: string;
-  status?: string;
-};
-
+type IntakeOption = { date: string; deadline?: string; status?: string };
 type EligibilityInfo = {
   eligible: boolean;
   partiallyEligible: boolean;
@@ -27,7 +31,6 @@ type EligibilityInfo = {
   missingRequirements: string[];
   message: string;
 };
-
 type SimilarCourse = {
   id: string;
   name: string;
@@ -37,7 +40,6 @@ type SimilarCourse = {
   currency: string;
   university: { name: string; country: string };
 };
-
 type CourseDetails = {
   id: string;
   name: string;
@@ -49,21 +51,20 @@ type CourseDetails = {
   intakes: string[];
   university: { id: string; name: string; country: string; city: string };
 };
-
 type WizardData = {
   course: CourseDetails;
   eligibility: EligibilityInfo;
   similarPrograms: SimilarCourse[];
   studentName: string;
 };
+type Props = { courseId: string; onClose: () => void; onApplied: (applicationId: string) => void };
 
-type Props = {
-  courseId: string;
-  onClose: () => void;
-  onApplied: (applicationId: string) => void;
-};
-
-const STEPS = ["Intakes", "Prerequisites", "Backups", "What to Expect"] as const;
+const STEPS = [
+  { id: "intake",   label: "Start Date",    icon: CalendarDays,  emoji: "📅" },
+  { id: "prereqs",  label: "Eligibility",   icon: GraduationCap, emoji: "🎯" },
+  { id: "backups",  label: "Alternatives",  icon: BookOpen,      emoji: "🔄" },
+  { id: "journey",  label: "Your Journey",  icon: Rocket,        emoji: "🚀" },
+] as const;
 
 function money(amount: number | null | undefined, currency: string) {
   if (!amount) return "Free";
@@ -74,9 +75,7 @@ function parseIntakes(course: CourseDetails): IntakeOption[] {
   if (Array.isArray(course.intakeDatesWithDeadlines) && course.intakeDatesWithDeadlines.length > 0) {
     return (course.intakeDatesWithDeadlines as IntakeOption[]).filter((i) => i.date);
   }
-  if (course.intakes && course.intakes.length > 0) {
-    return course.intakes.map((d) => ({ date: d }));
-  }
+  if (course.intakes?.length > 0) return course.intakes.map((d) => ({ date: d }));
   return [];
 }
 
@@ -98,34 +97,28 @@ export default function ApplyWizardModal({ courseId, onClose, onApplied }: Props
     (async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/student/courses/${courseId}`, { cache: "no-store" });
-        const json = await res.json() as {
-          data?: {
-            course: CourseDetails;
-            eligibility: EligibilityInfo;
-            similarPrograms: SimilarCourse[];
-            student: { id: string };
-          };
+        const [courseRes, sessionRes] = await Promise.all([
+          fetch(`/api/student/courses/${courseId}`, { cache: "no-store" }),
+          fetch("/api/auth/session"),
+        ]);
+        const courseJson = await courseRes.json() as {
+          data?: { course: CourseDetails; eligibility: EligibilityInfo; similarPrograms: SimilarCourse[] };
           error?: string;
         };
-        if (!res.ok || !json.data) throw new Error(json.error || "Failed to load course details");
-
-        const sessionRes = await fetch("/api/auth/session");
+        if (!courseRes.ok || !courseJson.data) throw new Error(courseJson.error || "Couldn't load course");
         const sessionJson = await sessionRes.json() as { user?: { name?: string } };
-        const studentName = sessionJson.user?.name || "Student";
-
         if (!cancelled) {
           setData({
-            course: json.data.course,
-            eligibility: json.data.eligibility,
-            similarPrograms: json.data.similarPrograms || [],
-            studentName,
+            course: courseJson.data.course,
+            eligibility: courseJson.data.eligibility,
+            similarPrograms: courseJson.data.similarPrograms || [],
+            studentName: sessionJson.user?.name || "Student",
           });
-          const intakes = parseIntakes(json.data.course);
+          const intakes = parseIntakes(courseJson.data.course);
           if (intakes.length > 0) setSelectedIntake(intakes[0].date);
         }
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to load course");
+        toast.error(err instanceof Error ? err.message : "Failed to load");
         if (!cancelled) onClose();
       } finally {
         if (!cancelled) setLoading(false);
@@ -144,24 +137,17 @@ export default function ApplyWizardModal({ courseId, onClose, onApplied }: Props
         body: JSON.stringify({ courseId, intake: selectedIntake || undefined }),
       });
       const json = await res.json() as {
-        data?: {
-          applicationId: string;
-          application?: { id: string };
-          fee?: { feeRequired: boolean; amount: number; currency: string };
-        };
+        data?: { applicationId: string; application?: { id: string }; fee?: { feeRequired: boolean; amount: number; currency: string } };
         error?: string;
         existingApplicationId?: string;
       };
-
       if (res.status === 409) {
-        toast.info(json.error || "You already have an active application for this course.");
+        toast.info("You already have an active application for this one!");
         if (json.existingApplicationId) router.push(`/student/applications/${json.existingApplicationId}`);
         onClose();
         return;
       }
-
-      if (!res.ok || !json.data) throw new Error(json.error || "Failed to create application");
-
+      if (!res.ok || !json.data) throw new Error(json.error || "Application failed");
       const appId = json.data.applicationId || json.data.application?.id || "";
       setAppliedAppId(appId);
       setFeeRequired(json.data.fee?.feeRequired ?? false);
@@ -170,31 +156,29 @@ export default function ApplyWizardModal({ courseId, onClose, onApplied }: Props
       setApplied(true);
       onApplied(appId);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to apply");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setApplying(false);
     }
   }
 
-  function goToApp() {
-    if (appliedAppId) router.push(`/student/applications/${appliedAppId}`);
-    onClose();
-  }
-
-  function goToFee() {
-    if (appliedAppId) router.push(`/student/applications/${appliedAppId}/fee?fromCreate=1`);
-    onClose();
-  }
-
   const intakes = data ? parseIntakes(data.course) : [];
   const selectedIntakeInfo = intakes.find((i) => i.date === selectedIntake);
+  const progress = applied ? 100 : (step / (STEPS.length - 1)) * 100;
 
   if (loading) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-        <div className="rounded-2xl bg-white p-8 shadow-2xl">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto" />
-          <p className="mt-3 text-sm text-slate-500 text-center">Loading course details…</p>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-md">
+        <div className="rounded-3xl bg-white p-10 shadow-2xl flex flex-col items-center gap-4">
+          <div className="relative">
+            <div className="h-16 w-16 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-200">
+              <Sparkles className="h-7 w-7 text-white animate-pulse" />
+            </div>
+          </div>
+          <div className="text-center">
+            <p className="font-bold text-slate-900 text-lg">Getting things ready</p>
+            <p className="text-sm text-slate-400 mt-1">Loading your course details…</p>
+          </div>
         </div>
       </div>
     );
@@ -204,278 +188,337 @@ export default function ApplyWizardModal({ courseId, onClose, onApplied }: Props
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-md p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="relative w-full max-w-2xl rounded-2xl bg-white shadow-2xl flex flex-col max-h-[90vh]">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-          <h2 className="text-lg font-semibold text-slate-900">New Application</h2>
-          <button onClick={onClose} className="rounded-full p-1 hover:bg-slate-100 transition">
-            <X className="h-5 w-5 text-slate-500" />
-          </button>
-        </div>
+      <div className="relative w-full max-w-xl rounded-3xl bg-white shadow-2xl shadow-slate-900/20 flex flex-col max-h-[92vh] overflow-hidden">
 
-        {/* Step indicator */}
-        <div className="px-6 pt-4 pb-2">
-          <div className="flex items-center gap-1">
-            {STEPS.map((s, i) => (
-              <div key={s} className="flex items-center gap-1 flex-1">
-                <div className="flex flex-col items-center gap-0.5 flex-1">
-                  <div
-                    className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-semibold border-2 transition-all ${
-                      applied
-                        ? "bg-emerald-500 border-emerald-500 text-white"
-                        : i < step
-                        ? "bg-blue-600 border-blue-600 text-white"
-                        : i === step
-                        ? "bg-white border-blue-600 text-blue-600"
-                        : "bg-white border-slate-300 text-slate-400"
-                    }`}
-                  >
-                    {i < step || applied ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
-                  </div>
-                  <span className={`text-xs font-medium ${i === step && !applied ? "text-blue-600" : "text-slate-400"}`}>
-                    {s}
-                  </span>
-                </div>
-                {i < STEPS.length - 1 && (
-                  <div className={`h-px flex-1 mb-4 transition-colors ${i < step ? "bg-blue-600" : "bg-slate-200"}`} />
-                )}
+        {/* Gradient header band */}
+        <div className="bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-600 px-6 pt-5 pb-0">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <Sparkles className="h-4 w-4 text-violet-200" />
+                <span className="text-xs font-semibold text-violet-200 uppercase tracking-widest">New Application</span>
               </div>
-            ))}
+              <h2 className="text-xl font-bold text-white leading-tight line-clamp-1">{data.course.name}</h2>
+              <p className="text-sm text-indigo-200 mt-0.5 flex items-center gap-1">
+                <MapPin className="h-3 w-3" /> {data.course.university.name}
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="rounded-full p-1.5 bg-white/10 hover:bg-white/20 transition text-white mt-0.5"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Step pills */}
+          <div className="flex gap-1.5 pb-4">
+            {STEPS.map((s, i) => {
+              const done = applied || i < step;
+              const active = !applied && i === step;
+              return (
+                <div
+                  key={s.id}
+                  className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-all ${
+                    done
+                      ? "bg-white/20 text-white"
+                      : active
+                      ? "bg-white text-indigo-700 shadow-sm"
+                      : "bg-white/10 text-white/40"
+                  }`}
+                >
+                  {done && !active ? <CheckCircle2 className="h-3 w-3" /> : <span>{s.emoji}</span>}
+                  {s.label}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Progress bar */}
+          <div className="h-1 w-full bg-white/20 rounded-full -mx-6 px-0" style={{ marginBottom: 0 }}>
+            <div
+              className="h-1 bg-white rounded-full transition-all duration-500"
+              style={{ width: `${progress}%` }}
+            />
           </div>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto px-6 pb-4">
-          {/* Applied success state */}
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+
+          {/* ── SUCCESS STATE ─────────────────────────────── */}
           {applied ? (
-            <div className="space-y-4 py-4">
-              <div className="flex items-center gap-3 rounded-xl bg-emerald-50 border border-emerald-200 p-4">
-                <CheckCircle2 className="h-6 w-6 text-emerald-500 shrink-0" />
-                <div>
-                  <p className="font-semibold text-emerald-900">Application submitted!</p>
-                  <p className="text-sm text-emerald-700 mt-0.5">
-                    {data.course.name} at {data.course.university.name}
-                  </p>
+            <div className="space-y-4">
+              <div className="rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 p-5 text-center">
+                <div className="h-14 w-14 rounded-full bg-emerald-500 flex items-center justify-center mx-auto mb-3 shadow-lg shadow-emerald-200">
+                  <CheckCircle2 className="h-7 w-7 text-white" />
                 </div>
+                <p className="text-lg font-bold text-emerald-900">You&apos;re in the queue! 🎉</p>
+                <p className="text-sm text-emerald-600 mt-1">
+                  Application submitted for <span className="font-semibold">{data.course.name}</span>.<br />
+                  Your counsellor will pick this up shortly.
+                </p>
               </div>
 
               {feeRequired && feeAmount > 0 ? (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-2">
-                  <div className="flex items-start gap-2">
-                    <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+                <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-4">
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className="h-9 w-9 rounded-xl bg-amber-500 flex items-center justify-center shrink-0 shadow shadow-amber-200">
+                      <Zap className="h-4 w-4 text-white" />
+                    </div>
                     <div>
-                      <p className="font-semibold text-amber-900">Application fee required</p>
+                      <p className="font-bold text-amber-900">One thing left 👀</p>
                       <p className="text-sm text-amber-700 mt-0.5">
-                        An application fee of <strong>{money(feeAmount, feeCurrency)}</strong> is due. Your counsellor has been notified. You can pay now or continue and pay later.
+                        There&apos;s a <strong>{money(feeAmount, feeCurrency)}</strong> application fee to keep things moving. Your counsellor&apos;s already been notified.
                       </p>
                     </div>
                   </div>
-                  <div className="flex gap-2 pt-1">
+                  <div className="flex gap-2">
                     <button
-                      onClick={goToFee}
-                      className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 transition"
+                      onClick={() => { if (appliedAppId) router.push(`/student/applications/${appliedAppId}/fee?fromCreate=1`); onClose(); }}
+                      className="flex-1 rounded-xl bg-amber-500 hover:bg-amber-600 py-2.5 text-sm font-bold text-white transition shadow shadow-amber-200"
                     >
-                      Pay Now
+                      Pay Now ⚡
                     </button>
                     <button
-                      onClick={goToApp}
-                      className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
+                      onClick={() => { if (appliedAppId) router.push(`/student/applications/${appliedAppId}`); onClose(); }}
+                      className="flex-1 rounded-xl border-2 border-amber-200 bg-white hover:bg-amber-50 py-2.5 text-sm font-semibold text-amber-700 transition"
                     >
                       Pay Later
                     </button>
                   </div>
                 </div>
               ) : (
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="flex items-center gap-2 text-sm text-slate-600">
-                    <Info className="h-4 w-4 text-slate-400" />
-                    No application fee required for this course.
-                  </div>
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-center gap-2 text-sm text-emerald-700">
+                  <BadgeCheck className="h-4 w-4 text-emerald-500 shrink-0" />
+                  No application fee — totally free to apply for this one.
                 </div>
               )}
             </div>
+
           ) : step === 0 ? (
-            // Step 1: Intakes
-            <div className="space-y-4 py-2">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2 text-sm">
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-                  <span className="font-medium text-slate-500">Program</span>
-                  <span className="text-slate-900">{data.course.name}</span>
-                  <span className="font-medium text-slate-500">School</span>
-                  <span className="text-slate-900">{data.course.university.name}</span>
-                  <span className="font-medium text-slate-500">Student</span>
-                  <span className="text-slate-900">{data.studentName}</span>
-                  {selectedIntake && (
-                    <>
-                      <span className="font-medium text-slate-500">Intake</span>
-                      <span className="text-slate-900">{selectedIntake}</span>
-                    </>
-                  )}
-                  {selectedIntakeInfo?.deadline && (
-                    <>
-                      <span className="font-medium text-slate-500">Deadline</span>
-                      <span className="text-slate-900 flex items-center gap-1">
-                        {selectedIntakeInfo.deadline}
-                        <Info className="h-3.5 w-3.5 text-slate-400" />
-                      </span>
-                    </>
-                  )}
-                </div>
+            /* ── STEP 1: START DATE ──────────────────────── */
+            <div className="space-y-4">
+              <div>
+                <p className="text-lg font-bold text-slate-900">When do you want to start? 📅</p>
+                <p className="text-sm text-slate-500 mt-0.5">Lock in your intake date to get the ball rolling.</p>
+              </div>
+
+              {/* Course snapshot card */}
+              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 space-y-2.5">
+                {[
+                  { label: "Program", value: data.course.name },
+                  { label: "School", value: data.course.university.name },
+                  { label: "Applying as", value: data.studentName },
+                  ...(selectedIntake ? [{ label: "Intake", value: selectedIntake }] : []),
+                  ...(selectedIntakeInfo?.deadline ? [{ label: "Deadline", value: selectedIntakeInfo.deadline }] : []),
+                ].map(({ label, value }) => (
+                  <div key={label} className="flex items-start justify-between gap-4 text-sm">
+                    <span className="text-slate-400 font-medium shrink-0">{label}</span>
+                    <span className="text-slate-800 font-semibold text-right">{value}</span>
+                  </div>
+                ))}
               </div>
 
               {intakes.length > 0 ? (
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                    Select the academic intake:
-                  </label>
-                  <select
-                    value={selectedIntake}
-                    onChange={(e) => setSelectedIntake(e.target.value)}
-                    className="w-full rounded-xl border-2 border-blue-400 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
-                  >
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">Choose your start date</label>
+                  <div className="space-y-2">
                     {intakes.map((intake) => (
-                      <option key={intake.date} value={intake.date}>
-                        {intake.date}{intake.status ? ` · ${intake.status}` : ""}
-                      </option>
+                      <button
+                        key={intake.date}
+                        onClick={() => setSelectedIntake(intake.date)}
+                        className={`w-full flex items-center justify-between rounded-xl border-2 px-4 py-3 text-sm font-medium transition-all ${
+                          selectedIntake === intake.date
+                            ? "border-indigo-500 bg-indigo-50 text-indigo-900"
+                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                        }`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <CalendarDays className={`h-4 w-4 ${selectedIntake === intake.date ? "text-indigo-500" : "text-slate-400"}`} />
+                          {intake.date}
+                          {intake.status && (
+                            <span className="rounded-full bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 font-semibold">{intake.status}</span>
+                          )}
+                        </span>
+                        {selectedIntake === intake.date && <CheckCircle2 className="h-4 w-4 text-indigo-500 shrink-0" />}
+                      </button>
                     ))}
-                  </select>
+                  </div>
                 </div>
               ) : (
-                <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-500 flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-slate-400 shrink-0" />
-                  No specific intakes listed. Your counsellor will confirm the intake with the university.
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-5 text-center">
+                  <Clock className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-sm font-semibold text-slate-600">Intakes TBC</p>
+                  <p className="text-xs text-slate-400 mt-1">No dates listed yet — your counsellor will sort this with the uni.</p>
                 </div>
               )}
             </div>
+
           ) : step === 1 ? (
-            // Step 2: Prerequisites
-            <div className="space-y-4 py-2">
-              <p className="text-sm text-slate-600">
-                Here&apos;s how your profile matches the entry requirements for this course.
-              </p>
+            /* ── STEP 2: ELIGIBILITY ─────────────────────── */
+            <div className="space-y-4">
+              <div>
+                <p className="text-lg font-bold text-slate-900">How do you stack up? 🎯</p>
+                <p className="text-sm text-slate-500 mt-0.5">Here&apos;s how your profile matches the entry requirements.</p>
+              </div>
+
               {data.eligibility.matchedRequirements.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Requirements met</p>
+                  <p className="text-xs font-bold uppercase tracking-widest text-emerald-600">Nailed it ✓</p>
                   {data.eligibility.matchedRequirements.map((r) => (
-                    <div key={r} className="flex items-start gap-2 rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
-                      <span className="text-sm text-emerald-800">{r}</span>
+                    <div key={r} className="flex items-start gap-2.5 rounded-xl bg-emerald-50 border border-emerald-100 px-3.5 py-2.5">
+                      <BadgeCheck className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                      <span className="text-sm text-emerald-800 font-medium">{r}</span>
                     </div>
                   ))}
                 </div>
               )}
+
               {data.eligibility.missingRequirements.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Missing or unverified</p>
+                  <p className="text-xs font-bold uppercase tracking-widest text-amber-600">Needs attention</p>
                   {data.eligibility.missingRequirements.map((r) => (
-                    <div key={r} className="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-100 px-3 py-2">
-                      <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-                      <span className="text-sm text-amber-800">{r}</span>
+                    <div key={r} className="flex items-start gap-2.5 rounded-xl bg-amber-50 border border-amber-100 px-3.5 py-2.5">
+                      <CircleAlert className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                      <span className="text-sm text-amber-800 font-medium">{r}</span>
                     </div>
                   ))}
                 </div>
               )}
+
               {data.eligibility.matchedRequirements.length === 0 && data.eligibility.missingRequirements.length === 0 && (
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-                  {data.eligibility.message || "Complete your academic profile to see eligibility details."}
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-5 text-center">
+                  <GraduationCap className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-sm font-semibold text-slate-600">Profile incomplete</p>
+                  <p className="text-xs text-slate-400 mt-1">Fill out your academic profile to see your eligibility score.</p>
                 </div>
               )}
-              <div className={`rounded-lg px-4 py-3 text-sm font-medium flex items-center gap-2 ${
+
+              <div className={`rounded-2xl px-4 py-3.5 text-sm font-semibold flex items-center gap-2.5 ${
                 data.eligibility.eligible
-                  ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                  ? "bg-emerald-500 text-white shadow shadow-emerald-200"
                   : data.eligibility.partiallyEligible
-                  ? "bg-amber-50 text-amber-800 border border-amber-200"
-                  : "bg-slate-50 text-slate-700 border border-slate-200"
+                  ? "bg-amber-500 text-white shadow shadow-amber-200"
+                  : "bg-slate-100 text-slate-600"
               }`}>
-                {data.eligibility.eligible ? (
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                ) : (
-                  <Info className="h-4 w-4 text-amber-500 shrink-0" />
-                )}
-                {data.eligibility.message || "You can still apply — your counsellor will review your profile."}
+                {data.eligibility.eligible
+                  ? <CheckCircle2 className="h-5 w-5 shrink-0" />
+                  : <AlertTriangle className="h-5 w-5 shrink-0" />
+                }
+                {data.eligibility.eligible
+                  ? "Looking good! You meet the requirements 💪"
+                  : data.eligibility.partiallyEligible
+                  ? "Partial match — you can still apply, your counsellor will guide you."
+                  : data.eligibility.message || "You can still apply — counsellors review every case."}
               </div>
             </div>
+
           ) : step === 2 ? (
-            // Step 3: Backups
-            <div className="space-y-4 py-2">
-              <p className="text-sm text-slate-600">
-                Consider these similar programs at other universities as alternatives or backups.
-              </p>
+            /* ── STEP 3: ALTERNATIVES ────────────────────── */
+            <div className="space-y-4">
+              <div>
+                <p className="text-lg font-bold text-slate-900">Keep your options open 🔄</p>
+                <p className="text-sm text-slate-500 mt-0.5">Similar programs worth having on your radar.</p>
+              </div>
+
               {data.similarPrograms.length > 0 ? (
                 <div className="space-y-2">
-                  {data.similarPrograms.slice(0, 4).map((p) => (
-                    <div key={p.id} className="rounded-xl border border-slate-200 bg-white px-4 py-3 flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-medium text-slate-900">{p.name}</p>
-                        <p className="text-xs text-slate-500 mt-0.5">{p.university.name} · {p.university.country}</p>
+                  {data.similarPrograms.slice(0, 4).map((p, i) => (
+                    <div key={p.id} className="rounded-2xl border border-slate-100 bg-white p-4 flex items-center justify-between gap-3 hover:border-indigo-100 hover:bg-indigo-50/30 transition">
+                      <div className="flex items-start gap-3">
+                        <div className={`h-8 w-8 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 ${
+                          i === 0 ? "bg-violet-100 text-violet-700"
+                          : i === 1 ? "bg-blue-100 text-blue-700"
+                          : i === 2 ? "bg-teal-100 text-teal-700"
+                          : "bg-slate-100 text-slate-600"
+                        }`}>
+                          {i + 1}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900 leading-tight">{p.name}</p>
+                          <p className="text-xs text-slate-400 mt-0.5">{p.university.name} · {p.university.country}</p>
+                        </div>
                       </div>
-                      <span className="shrink-0 text-sm font-semibold text-slate-700">
-                        {p.tuitionFee ? money(p.tuitionFee, p.currency) : "N/A"}
+                      <span className={`shrink-0 text-sm font-bold rounded-lg px-2.5 py-1 ${
+                        !p.tuitionFee ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-700"
+                      }`}>
+                        {p.tuitionFee ? money(p.tuitionFee, p.currency) : "Free"}
                       </span>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-                  No similar programs found at this time.
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-5 text-center">
+                  <BookOpen className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-sm font-semibold text-slate-600">No alternatives found right now</p>
+                  <p className="text-xs text-slate-400 mt-1">Explore more programs from the course search page.</p>
                 </div>
               )}
-              <p className="text-xs text-slate-400">You can apply to multiple programs independently from the course search page.</p>
+              <p className="text-xs text-slate-400 text-center">You can apply to multiple programs at once from Course Search.</p>
             </div>
-          ) : (
-            // Step 4: What to Expect
-            <div className="space-y-4 py-2">
-              <p className="text-sm text-slate-600">
-                Once you apply, here&apos;s what the process looks like:
-              </p>
-              <ol className="space-y-3">
-                {[
-                  { step: "Application Submitted", desc: "Your counsellor will review and verify your documents." },
-                  { step: "Submitted to University", desc: "Your counsellor forwards your application to the university." },
-                  { step: "Offer Received", desc: "The university responds with a conditional or unconditional offer." },
-                  { step: "Finance", desc: "You pay your tuition deposit and complete your financial documents." },
-                  { step: "CAS & Visa", desc: "Your CAS letter is issued and you apply for your visa." },
-                  { step: "Enrolled", desc: "You confirm your enrolment and join the program." },
-                ].map((item, i) => (
-                  <li key={i} className="flex gap-3">
-                    <div className="h-6 w-6 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold flex items-center justify-center shrink-0 mt-0.5">
-                      {i + 1}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-slate-900">{item.step}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">{item.desc}</p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
 
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-1.5 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Tuition fee</span>
-                  <span className="font-medium text-slate-900">{money(data.course.tuitionFee, data.course.currency)}</span>
+          ) : (
+            /* ── STEP 4: JOURNEY ─────────────────────────── */
+            <div className="space-y-4">
+              <div>
+                <p className="text-lg font-bold text-slate-900">Here&apos;s what happens next 🚀</p>
+                <p className="text-sm text-slate-500 mt-0.5">Your full journey from application to enrolled — no surprises.</p>
+              </div>
+
+              <div className="space-y-2">
+                {[
+                  { emoji: "📋", label: "Application Submitted", desc: "Your counsellor reviews & verifies your documents.", color: "violet" },
+                  { emoji: "🏫", label: "Sent to University",    desc: "Your counsellor submits everything to the uni.",     color: "blue" },
+                  { emoji: "📩", label: "Offer Received",        desc: "Conditional or unconditional — uni comes back to you.", color: "indigo" },
+                  { emoji: "💰", label: "Finance Sorted",        desc: "Pay your deposit & sort your financial docs.",       color: "teal" },
+                  { emoji: "🛂", label: "CAS & Visa",            desc: "Get your CAS letter and apply for your visa.",        color: "cyan" },
+                  { emoji: "🎓", label: "Enrolled!",             desc: "You're officially in. Go show up and crush it.",      color: "emerald" },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-start gap-3">
+                    <div className="flex flex-col items-center shrink-0">
+                      <div className="h-9 w-9 rounded-xl bg-slate-100 flex items-center justify-center text-base shadow-sm">
+                        {item.emoji}
+                      </div>
+                      {i < 5 && <div className="w-px h-3 bg-slate-200 mt-1" />}
+                    </div>
+                    <div className="pt-1.5">
+                      <p className="text-sm font-bold text-slate-900 leading-tight">{item.label}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{item.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Fee summary card */}
+              <div className="rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100/50 border border-slate-200 p-4 space-y-2">
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Cost Summary</p>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-500 flex items-center gap-1.5"><TrendingUp className="h-3.5 w-3.5" /> Tuition fee</span>
+                  <span className="font-bold text-slate-900">{money(data.course.tuitionFee, data.course.currency)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Application fee</span>
-                  <span className={`font-medium ${data.course.applicationFee ? "text-amber-700" : "text-emerald-700"}`}>
-                    {data.course.applicationFee ? money(data.course.applicationFee, data.course.currency) : "Free"}
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-500 flex items-center gap-1.5"><Zap className="h-3.5 w-3.5" /> Application fee</span>
+                  <span className={`font-bold ${data.course.applicationFee ? "text-amber-600" : "text-emerald-600"}`}>
+                    {data.course.applicationFee ? money(data.course.applicationFee, data.course.currency) : "Free ✓"}
                   </span>
                 </div>
                 {selectedIntake && (
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Selected intake</span>
-                    <span className="font-medium text-slate-900">{selectedIntake}</span>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-slate-500 flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> Your intake</span>
+                    <span className="font-bold text-slate-900">{selectedIntake}</span>
                   </div>
                 )}
               </div>
 
               {data.course.applicationFee != null && data.course.applicationFee > 0 && (
-                <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm">
+                <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm">
                   <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
                   <span className="text-amber-800">
-                    An application fee of <strong>{money(data.course.applicationFee, data.course.currency)}</strong> applies. You can pay after submitting your application.
+                    Heads up — <strong>{money(data.course.applicationFee, data.course.currency)}</strong> application fee applies. You&apos;ll be able to pay after you submit.
                   </span>
                 </div>
               )}
@@ -484,44 +527,48 @@ export default function ApplyWizardModal({ courseId, onClose, onApplied }: Props
         </div>
 
         {/* Footer */}
-        {!applied && (
-          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200">
+        {!applied ? (
+          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-slate-50/60">
             <button
-              onClick={() => setStep((s) => Math.max(0, s - 1))}
-              disabled={step === 0}
-              className="flex items-center gap-1 rounded-lg px-4 py-2 text-sm font-semibold text-slate-700 border border-slate-300 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+              onClick={() => step === 0 ? onClose() : setStep((s) => s - 1)}
+              className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition"
             >
               <ChevronLeft className="h-4 w-4" />
-              Cancel
+              {step === 0 ? "Cancel" : "Back"}
             </button>
+
+            <div className="flex items-center gap-2 text-xs text-slate-400">
+              {STEPS.map((_, i) => (
+                <div key={i} className={`h-1.5 w-6 rounded-full transition-all ${i <= step ? "bg-indigo-500" : "bg-slate-200"}`} />
+              ))}
+            </div>
 
             {step < STEPS.length - 1 ? (
               <button
                 onClick={() => setStep((s) => s + 1)}
-                className="flex items-center gap-1 rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition"
+                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 px-5 py-2.5 text-sm font-bold text-white transition shadow shadow-indigo-200"
               >
-                Next <ChevronRight className="h-4 w-4" />
+                Next <ArrowRight className="h-4 w-4" />
               </button>
             ) : (
               <button
                 onClick={() => void handleApply()}
                 disabled={applying}
-                className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60 transition"
+                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 px-6 py-2.5 text-sm font-bold text-white transition shadow shadow-indigo-200 disabled:opacity-60"
               >
-                {applying && <Loader2 className="h-4 w-4 animate-spin" />}
-                Apply Now →
+                {applying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
+                {applying ? "Submitting…" : "Let's Go!"}
               </button>
             )}
           </div>
-        )}
-
-        {applied && (
-          <div className="flex justify-end px-6 py-4 border-t border-slate-200">
+        ) : (
+          <div className="flex justify-between items-center px-6 py-4 border-t border-slate-100 bg-slate-50/60">
+            <p className="text-sm text-slate-500">Application created ✓</p>
             <button
-              onClick={goToApp}
-              className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition"
+              onClick={() => { if (appliedAppId) router.push(`/student/applications/${appliedAppId}`); onClose(); }}
+              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 px-5 py-2.5 text-sm font-bold text-white transition shadow shadow-indigo-200"
             >
-              View Application →
+              View My Application <ArrowRight className="h-4 w-4" />
             </button>
           </div>
         )}
