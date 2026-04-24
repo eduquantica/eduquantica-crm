@@ -3,7 +3,160 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, Check } from "lucide-react";
+import { AlertTriangle, ArrowRight, Check, ShoppingCart } from "lucide-react";
+
+function money(amount: number, currency: string) {
+  return new Intl.NumberFormat("en-GB", { style: "currency", currency }).format(amount);
+}
+
+function ApplicationCard({ application }: { application: ApplicationRow }) {
+  const statusMeta = STATUS_UI[application.status];
+  const current = stageIndex(application.status);
+  const feeUnpaid = application.fee.feeRequired && application.fee.displayStatus === "UNPAID";
+  const feePending = application.fee.feeRequired && application.fee.displayStatus === "PENDING_APPROVAL";
+
+  return (
+    <article className="glass-card p-5">
+      {feeUnpaid && (
+        <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm">
+          <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+          <span className="text-amber-800">
+            Application fee of <strong>{money(application.fee.amount, application.fee.currency)}</strong> is outstanding.{" "}
+            <Link href={`/student/applications/${application.id}/fee?fromCreate=1`} className="font-semibold underline">Pay now</Link>
+          </span>
+        </div>
+      )}
+      {feePending && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+          <ShoppingCart className="h-4 w-4 text-blue-500 shrink-0" />
+          Payment receipt submitted — awaiting approval.
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          {application.university.logo ? (
+            <Image
+              src={application.university.logo}
+              alt={application.university.name}
+              width={56}
+              height={56}
+              className="h-14 w-14 rounded-xl object-cover"
+              loader={({ src }) => src}
+              unoptimized
+            />
+          ) : (
+            <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300">
+              {application.university.name.slice(0, 2).toUpperCase()}
+            </div>
+          )}
+          <div>
+            <p className="text-lg font-semibold text-slate-900">{application.university.name}</p>
+            <p className="text-sm text-slate-600">{application.course.name}</p>
+            <div className="mt-1 flex items-center gap-3 flex-wrap">
+              <p className="text-xs text-slate-500">Intake: {application.intake?.date || "To be confirmed"}</p>
+              {application.applicationRef && (
+                <p className="text-xs font-mono text-blue-600">{application.applicationRef}</p>
+              )}
+            </div>
+          </div>
+        </div>
+        <span className={`rounded-full px-4 py-2 text-sm font-semibold ${statusMeta.badge}`}>
+          {statusMeta.label}
+        </span>
+      </div>
+
+      <p className="mt-4 text-sm font-medium text-slate-800 dark:text-slate-200">Next action: {statusMeta.nextStep}</p>
+      {application.status === "VISA_APPLIED" && application.visaSubStatus && (
+        <p className="mt-1 text-xs text-slate-600">Visa status: {application.visaSubStatus.replace("VISA_", "")}</p>
+      )}
+
+      <div className="mt-4 overflow-x-auto">
+        <div className="min-w-[680px]">
+          <div className="flex items-center justify-between">
+            {STAGES.map((stage, index) => {
+              const done = index < current;
+              const active = index === current;
+              return (
+                <div key={`${application.id}-${stage}`} className="flex min-w-0 flex-1 items-center">
+                  <div className="flex flex-col items-center">
+                    <div className={`flex h-7 w-7 items-center justify-center rounded-full border text-xs font-semibold ${
+                      done ? "border-blue-600 bg-blue-600 text-white"
+                        : active ? "border-blue-600 bg-blue-100 text-blue-700"
+                        : "border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400"
+                    }`}>
+                      {done ? <Check className="h-4 w-4" /> : index + 1}
+                    </div>
+                    <span className="mt-1 text-[11px] text-slate-600 dark:text-slate-400">{stage}</span>
+                  </div>
+                  {index < STAGES.length - 1 && (
+                    <div className={`mx-2 h-1 flex-1 rounded ${index < current ? "bg-blue-600" : "bg-slate-200 dark:bg-slate-700"}`} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-5 flex items-center gap-3">
+        <Link
+          href={`/student/applications/${application.id}`}
+          className="inline-flex items-center gap-2 rounded-lg border border-slate-300 dark:border-white/20 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/10"
+        >
+          View Full Details
+        </Link>
+        {feeUnpaid && (
+          <Link
+            href={`/student/applications/${application.id}/fee?fromCreate=1`}
+            className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700"
+          >
+            Pay Application Fee
+          </Link>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function ApplicationsList({ applications }: { applications: ApplicationRow[] }) {
+  const unpaidFee = applications.filter(
+    (a) => a.fee.feeRequired && a.fee.displayStatus === "UNPAID" && a.status !== "WITHDRAWN",
+  );
+  const active = applications.filter(
+    (a) => !(a.fee.feeRequired && a.fee.displayStatus === "UNPAID" && a.status !== "WITHDRAWN"),
+  );
+
+  return (
+    <div className="space-y-6">
+      {unpaidFee.length > 0 && (
+        <section>
+          <div className="mb-3 flex items-center gap-2 rounded-t-xl bg-amber-600 px-4 py-2.5">
+            <ShoppingCart className="h-4 w-4 text-white" />
+            <h2 className="text-sm font-semibold text-white">Unpaid Application Fee ({unpaidFee.length})</h2>
+          </div>
+          <div className="space-y-3">
+            {unpaidFee.map((app) => <ApplicationCard key={app.id} application={app} />)}
+          </div>
+        </section>
+      )}
+
+      {active.length > 0 && (
+        <section>
+          {unpaidFee.length > 0 && (
+            <div className="mb-3 flex items-center gap-2 rounded-t-xl bg-blue-600 px-4 py-2.5">
+              <Check className="h-4 w-4 text-white" />
+              <h2 className="text-sm font-semibold text-white">Active Applications ({active.length})</h2>
+            </div>
+          )}
+          <div className="space-y-3">
+            {active.map((app) => <ApplicationCard key={app.id} application={app} />)}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
 
 type AppStatus =
   | "APPLIED"
@@ -20,14 +173,18 @@ type AppStatus =
   | "ENROLLED"
   | "WITHDRAWN";
 
+type FeeStatus = "UNPAID" | "PENDING_APPROVAL" | "PAID" | "WAIVED" | "NOT_REQUIRED";
+
 type ApplicationRow = {
   id: string;
+  applicationRef?: string | null;
   status: AppStatus;
   visaSubStatus?: "VISA_PENDING" | "VISA_APPROVED" | "VISA_REJECTED" | null;
   createdAt: string;
   submittedAt: string | null;
   offerReceivedAt: string | null;
   intake: { date?: string; deadline?: string } | null;
+  fee: { feeRequired: boolean; displayStatus: FeeStatus; amount: number; currency: string };
   course: { id: string; name: string };
   university: {
     id: string;
@@ -145,92 +302,7 @@ export default function StudentApplicationsPage() {
       )}
 
       {!loading && !error && applications.length > 0 && (
-        <section className="space-y-4">
-          {applications.map((application) => {
-            const statusMeta = STATUS_UI[application.status];
-            const current = stageIndex(application.status);
-
-            return (
-              <article key={application.id} className="glass-card p-5">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="flex items-start gap-3">
-                    {application.university.logo ? (
-                      <Image
-                        src={application.university.logo}
-                        alt={application.university.name}
-                        width={56}
-                        height={56}
-                        className="h-14 w-14 rounded-xl object-cover"
-                        loader={({ src }) => src}
-                        unoptimized
-                      />
-                    ) : (
-                      <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300">
-                        {application.university.name.slice(0, 2).toUpperCase()}
-                      </div>
-                    )}
-                    <div>
-                      <p className="text-lg font-semibold text-slate-900">{application.university.name}</p>
-                      <p className="text-sm text-slate-600">{application.course.name}</p>
-                      <p className="mt-1 text-xs text-slate-500">Intake: {application.intake?.date || "To be confirmed"}</p>
-                    </div>
-                  </div>
-
-                  <span className={`rounded-full px-4 py-2 text-sm font-semibold ${statusMeta.badge}`}>
-                    {statusMeta.label}
-                  </span>
-                </div>
-
-                <p className="mt-4 text-sm font-medium text-slate-800 dark:text-slate-200">Next action: {statusMeta.nextStep}</p>
-                {application.status === "VISA_APPLIED" && application.visaSubStatus && (
-                  <p className="mt-1 text-xs text-slate-600">Visa status: {application.visaSubStatus.replace("VISA_", "")}</p>
-                )}
-
-                <div className="mt-4 overflow-x-auto">
-                  <div className="min-w-[680px]">
-                    <div className="flex items-center justify-between">
-                      {STAGES.map((stage, index) => {
-                        const done = index < current;
-                        const active = index === current;
-
-                        return (
-                          <div key={`${application.id}-${stage}`} className="flex min-w-0 flex-1 items-center">
-                            <div className="flex flex-col items-center">
-                              <div
-                                className={`flex h-7 w-7 items-center justify-center rounded-full border text-xs font-semibold ${
-                                  done
-                                    ? "border-blue-600 bg-blue-600 text-white"
-                                    : active
-                                      ? "border-blue-600 bg-blue-100 text-blue-700"
-                                      : "border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400"
-                                }`}
-                              >
-                                {done ? <Check className="h-4 w-4" /> : index + 1}
-                              </div>
-                              <span className="mt-1 text-[11px] text-slate-600 dark:text-slate-400">{stage}</span>
-                            </div>
-                            {index < STAGES.length - 1 && (
-                              <div className={`mx-2 h-1 flex-1 rounded ${index < current ? "bg-blue-600" : "bg-slate-200 dark:bg-slate-700"}`} />
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-5">
-                  <Link
-                    href={`/student/applications/${application.id}`}
-                    className="inline-flex items-center gap-2 rounded-lg border border-slate-300 dark:border-white/20 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/10"
-                  >
-                    View Full Details
-                  </Link>
-                </div>
-              </article>
-            );
-          })}
-        </section>
+        <ApplicationsList applications={applications} />
       )}
     </main>
     </div>

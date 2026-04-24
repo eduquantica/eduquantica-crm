@@ -5,10 +5,13 @@ import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ensureFeePaymentForApplication, getApplicationFeeSummary } from "@/lib/application-fees";
+import { generateApplicationRef } from "@/lib/generateIds";
+import { NotificationService } from "@/lib/notifications";
 
 const payloadSchema = z.object({
   courseId: z.string().min(1),
   isUcas: z.boolean().optional(),
+  intake: z.string().optional().nullable(),
 });
 
 const ACTIVE_STATUSES: ApplicationStatus[] = [
@@ -96,18 +99,20 @@ export async function POST(req: Request) {
       || (course.level || "").toUpperCase().startsWith("UG");
     const applyUcas = requestedUcas && isUndergraduate;
 
+    const applicationRef = await generateApplicationRef();
+
     const created = await db.application.create({
       data: {
+        applicationRef,
         studentId: student.id,
         courseId: course.id,
         universityId: course.universityId,
         counsellorId: student.assignedCounsellorId || null,
         status: ApplicationStatus.APPLIED,
         isUcas: applyUcas,
+        intake: payload.intake || null,
       },
-      select: {
-        id: true,
-      },
+      select: { id: true },
     });
 
     await ensureFeePaymentForApplication(created.id);
@@ -123,11 +128,62 @@ export async function POST(req: Request) {
       },
     });
 
+    // Send fee notifications when a fee is required
+    if (feeSummary.feeRequired && feeSummary.amount > 0) {
+      const appLink = `/student/applications/${created.id}/fee`;
+      const feeMsg = `Application fee of ${feeSummary.amount} ${feeSummary.currency} is due for ${course.id}.`;
+
+      // Notify student
+      void NotificationService.createNotification({
+        userId: session.user.id,
+        type: "APPLICATION_FEE_REQUIRED",
+        message: `Your application fee of ${feeSummary.amount} ${feeSummary.currency} is outstanding. Please pay to proceed.`,
+        linkUrl: appLink,
+      });
+
+      // Notify assigned counsellor
+      if (student.assignedCounsellorId) {
+        const counsellor = await db.user.findUnique({
+          where: { id: student.assignedCounsellorId },
+          select: { id: true },
+        });
+        if (counsellor) {
+          void NotificationService.createNotification({
+            userId: counsellor.id,
+            type: "APPLICATION_FEE_REQUIRED",
+            message: feeMsg,
+            linkUrl: `/dashboard/applications/${created.id}`,
+          });
+        }
+      }
+
+      // Notify all admins and managers
+      const staffUsers = await db.user.findMany({
+        where: {
+          isActive: true,
+          role: { name: { in: ["ADMIN", "MANAGER"] } },
+        },
+        select: { id: true },
+        take: 20,
+      });
+      await Promise.allSettled(
+        staffUsers.map((u) =>
+          NotificationService.createNotification({
+            userId: u.id,
+            type: "APPLICATION_FEE_REQUIRED",
+            message: feeMsg,
+            linkUrl: `/dashboard/applications/${created.id}`,
+          }),
+        ),
+      );
+    }
+
     return NextResponse.json(
       {
         data: {
           application: { id: created.id },
           applicationId: created.id,
+          applicationRef,
           fee: feeSummary,
           ucasWarning: requestedUcas && !isUndergraduate
             ? "UCAS fee applies to undergraduate applications only"

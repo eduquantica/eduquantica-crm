@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Heart, Loader2, SlidersHorizontal, X } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import CurrencyDisplay from "@/components/CurrencyDisplay";
 import EligibilityStatusBadge from "@/components/shared/EligibilityStatusBadge";
+import ApplyWizardModal from "@/components/student/ApplyWizardModal";
 
 type EligibilityStatus = {
   eligible: boolean;
@@ -49,7 +49,6 @@ function successChance(matchScore: number) {
 }
 
 export default function StudentCoursesEligibilityPage() {
-  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [courses, setCourses] = useState<CourseItem[]>([]);
@@ -75,6 +74,7 @@ export default function StudentCoursesEligibilityPage() {
   const [savingWishlistId, setSavingWishlistId] = useState<string | null>(null);
   const [applyingCourseId, setApplyingCourseId] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [wizardCourseId, setWizardCourseId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -154,40 +154,10 @@ export default function StudentCoursesEligibilityPage() {
     }
   }
 
-  async function applyNow(courseId: string) {
-    try {
-      setApplyingCourseId(courseId);
-      setActionMessage(null);
-      const res = await fetch("/api/student/applications/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ courseId }),
-      });
-      const json = await res.json() as {
-        error?: string;
-        data?: { application?: { id: string } };
-        existingApplicationId?: string;
-      };
-
-      if (res.status === 409) {
-        setActionMessage(json.error || "You already have an active application for this course.");
-        if (json.existingApplicationId) {
-          router.push(`/student/applications/${json.existingApplicationId}`);
-        }
-        return;
-      }
-
-      if (!res.ok || !json.data?.application?.id) {
-        throw new Error(json.error || "Failed to create application");
-      }
-
-      setAppliedCourseIds((prev) => new Set([...Array.from(prev), courseId]));
-      router.push(`/student/applications/${json.data.application.id}`);
-    } catch (err) {
-      setActionMessage(err instanceof Error ? err.message : "Failed to apply");
-    } finally {
-      setApplyingCourseId(null);
-    }
+  function applyNow(courseId: string) {
+    setApplyingCourseId(null);
+    setActionMessage(null);
+    setWizardCourseId(courseId);
   }
 
   const countries = useMemo(
@@ -538,6 +508,17 @@ export default function StudentCoursesEligibilityPage() {
             </button>
           </div>
         </div>
+      )}
+
+      {wizardCourseId && (
+        <ApplyWizardModal
+          courseId={wizardCourseId}
+          onClose={() => setWizardCourseId(null)}
+          onApplied={(appId) => {
+            setAppliedCourseIds((prev) => new Set([...Array.from(prev), wizardCourseId]));
+            void appId;
+          }}
+        />
       )}
     </main>
   );
