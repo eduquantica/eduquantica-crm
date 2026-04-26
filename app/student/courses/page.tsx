@@ -343,7 +343,7 @@ export default function StudentCoursesEligibilityPage() {
   );
 
   return (
-    <main className="student-dashboard-bg mx-auto w-full max-w-7xl space-y-6 rounded-3xl px-4 py-6 sm:px-6">
+    <main className="w-full max-w-[1400px] space-y-6 px-5 py-6 sm:px-7">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Find Your Best-Fit Courses</h1>

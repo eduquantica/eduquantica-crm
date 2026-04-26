@@ -320,19 +320,18 @@ export default function StudentDocumentsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen student-dashboard-bg flex items-center justify-center">
+      <div className="flex items-center justify-center p-20">
         <div className="glass-card p-8 text-sm text-slate-600 dark:text-slate-300">Loading documents...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen student-dashboard-bg">
-    <main className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 sm:px-6">
+    <main className="w-full max-w-[1400px] space-y-6 px-5 py-6 sm:px-7">
       <section className="glass-card p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">My Documents</h1>
+            <h1 className="text-2xl font-black text-[#1B2A4A]">📁 My Documents</h1>
             <p className="mt-1 text-sm text-slate-500">Smart checklist built from your profile, test scores, uploads, and staff requests.</p>
           </div>
 
@@ -576,6 +575,5 @@ export default function StudentDocumentsPage() {
 
       {previewDoc && <DocumentPreviewModal fileUrl={previewDoc.url} fileName={previewDoc.name} onClose={() => setPreviewDoc(null)} />}
     </main>
-    </div>
   );
 }

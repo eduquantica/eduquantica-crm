@@ -278,11 +278,10 @@ export default function StudentApplicationsPage() {
   const emptyState = useMemo(() => !loading && !error && applications.length === 0, [loading, error, applications.length]);
 
   return (
-    <div className="min-h-screen student-dashboard-bg">
-    <main className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6">
+    <div className="w-full px-5 py-6 sm:px-7 space-y-6 max-w-[1400px]">
       <section className="glass-card p-6">
-        <h1 className="text-2xl font-bold text-slate-900">My Applications</h1>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Track every stage of your applications in one place.</p>
+        <h1 className="text-2xl font-black text-[#1B2A4A]">📋 My Applications</h1>
+        <p className="mt-1 text-sm text-slate-500">Track every stage of your applications in one place.</p>
       </section>
 
       {loading && <div className="glass-card p-6 text-sm text-slate-600 dark:text-slate-300">Loading applications...</div>}
@@ -304,7 +303,6 @@ export default function StudentApplicationsPage() {
       {!loading && !error && applications.length > 0 && (
         <ApplicationsList applications={applications} />
       )}
-    </main>
     </div>
   );
 }

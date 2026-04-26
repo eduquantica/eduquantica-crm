@@ -16,7 +16,7 @@ export default function TimeGreeting({ firstName }: { firstName: string }) {
   }, []);
 
   return (
-    <h1 className="text-2xl font-bold text-white">
+    <h1 className="text-2xl font-black text-white leading-tight">
       {greeting.emoji} {greeting.text}, {firstName}!
     </h1>
   );

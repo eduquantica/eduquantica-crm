@@ -8,8 +8,6 @@
   }
 }
 
-
-
 @layer base {
   :root {
     --background: 225 38% 98%;
@@ -30,7 +28,7 @@
     --destructive-foreground: 0 0% 98%;
     --border: 0 0% 89.8%;
     --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
+    --ring: 220 47% 20%;
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
     --chart-3: 197 37% 24%;
@@ -41,14 +39,14 @@
     --eq-gold: #F5A623;
     --eq-bg: #F8F9FC;
     --eq-surface: #ffffff;
-    --eq-surface-alt: #f7f9ff;
+    --eq-surface-alt: #f4f7fd;
     --eq-border: #dbe2f2;
     --eq-ink: #1b2a4a;
     --eq-ink-soft: #5f6f92;
-    --eq-sidebar: #162643;
+    --eq-sidebar: #0f1f3d;
     --eq-sidebar-ink: #c8d7f5;
-    --eq-sidebar-active: #f5a623;
-    --eq-focus: #3b82f6;
+    --eq-sidebar-active: #F5A623;
+    --eq-focus: #1B2A4A;
   }
   .dark {
     --background: 0 0% 3.9%;
@@ -81,10 +79,10 @@
     --eq-border: #24324f;
     --eq-ink: #e6ecff;
     --eq-ink-soft: #9fb0d6;
-    --eq-sidebar: #0c1426;
+    --eq-sidebar: #080f1e;
     --eq-sidebar-ink: #9fb0d6;
-    --eq-sidebar-active: #f7b84b;
-    --eq-focus: #60a5fa;
+    --eq-sidebar-active: #F5A623;
+    --eq-focus: #3b82f6;
   }
 }
 
@@ -135,63 +133,63 @@
     color: transparent;
   }
 
+  /* Glass card — white with subtle navy shadow */
   .glass-card {
-    background: rgba(255, 255, 255, 0.82);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
-    border: 1px solid rgba(139, 92, 246, 0.12);
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(27, 42, 74, 0.08);
     border-radius: 20px;
-    box-shadow: 0 4px 24px rgba(109, 40, 217, 0.07), 0 1px 4px rgba(109, 40, 217, 0.04);
+    box-shadow: 0 4px 20px rgba(27, 42, 74, 0.07), 0 1px 4px rgba(27, 42, 74, 0.04);
   }
 
   .dark .glass-card {
-    background: rgba(30, 20, 60, 0.55);
-    border: 1px solid rgba(139, 92, 246, 0.15);
+    background: rgba(17, 27, 47, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.06);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   }
 
+  /* Primary CTA — navy gradient */
   .gradient-btn {
-    background: linear-gradient(135deg, #7c3aed, #4f46e5);
+    background: linear-gradient(135deg, #1B2A4A, #2f4f86);
     color: white;
     border-radius: 12px;
     transition: all 200ms ease;
-    box-shadow: 0 4px 14px rgba(124, 58, 237, 0.35);
+    box-shadow: 0 4px 14px rgba(27, 42, 74, 0.28);
   }
 
   .gradient-btn:hover {
     filter: brightness(1.1);
     transform: translateY(-1px);
-    box-shadow: 0 6px 20px rgba(124, 58, 237, 0.45);
+    box-shadow: 0 6px 20px rgba(27, 42, 74, 0.38);
   }
 
+  /* Gold gradient — used for progress bars and highlights */
   .gold-gradient {
-    background: linear-gradient(135deg, #7c3aed, #4f46e5);
+    background: linear-gradient(135deg, #F5A623, #e8930f);
   }
 
+  /* Student portal page background — clean, light */
   .student-dashboard-bg {
-    background: linear-gradient(145deg, #f5f3ff 0%, #ede9fe 35%, #eef2ff 65%, #f0f9ff 100%);
-    background-size: 200% 200%;
-    animation: studentGradientMove 16s ease infinite;
+    background: #f4f7fd;
   }
 
   .dark .student-dashboard-bg {
-    background: linear-gradient(145deg, #0d0520 0%, #150d35 35%, #0f1535 65%, #060d1f 100%);
-    background-size: 200% 200%;
+    background: #090f1e;
   }
 
+  /* Generic portal background */
   .portal-bg {
     background:
-      radial-gradient(circle at 10% 10%, rgba(124, 58, 237, 0.1), transparent 38%),
-      radial-gradient(circle at 90% 6%, rgba(79, 70, 229, 0.12), transparent 42%),
-      radial-gradient(circle at 50% 90%, rgba(139, 92, 246, 0.07), transparent 40%),
-      linear-gradient(180deg, #faf9ff 0%, #f0ecff 45%, #f8f6ff 100%);
+      radial-gradient(circle at 10% 10%, rgba(27, 42, 74, 0.05), transparent 38%),
+      radial-gradient(circle at 90% 6%, rgba(245, 166, 35, 0.06), transparent 42%),
+      #f4f7fd;
   }
 
   .dark .portal-bg {
     background:
-      radial-gradient(circle at 10% 10%, rgba(124, 58, 237, 0.15), transparent 36%),
-      radial-gradient(circle at 86% 6%, rgba(79, 70, 229, 0.12), transparent 40%),
-      linear-gradient(180deg, #0d0520 0%, #100d2a 45%, #0a0818 100%);
+      radial-gradient(circle at 10% 10%, rgba(27, 42, 74, 0.2), transparent 36%),
+      linear-gradient(180deg, #090f1e 0%, #0d1628 100%);
   }
 
   .portal-main {
@@ -201,8 +199,8 @@
 
   .portal-topbar {
     @apply border-b;
-    border-color: var(--eq-border);
-    background: color-mix(in srgb, var(--eq-surface) 82%, transparent);
+    border-color: rgba(27, 42, 74, 0.1);
+    background: rgba(255, 255, 255, 0.92);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
   }
@@ -214,37 +212,39 @@
     box-shadow: 0 10px 24px rgba(27, 42, 74, 0.08);
   }
 
+  /* Sidebar — dark navy brand color */
   .portal-sidebar {
-    background: linear-gradient(190deg, #2e1065 0%, #3b0764 32%, #1e1b4b 70%, #1e1b4b 100%);
-    color: rgba(255,255,255,0.75);
+    background: linear-gradient(190deg, #0d1f3c 0%, #162643 40%, #1B2A4A 100%);
+    color: rgba(255, 255, 255, 0.72);
   }
 
   .dark .portal-sidebar {
-    background: linear-gradient(190deg, #1a0840 0%, #200745 36%, #12103a 70%, #0e0c2e 100%);
+    background: linear-gradient(190deg, #08111f 0%, #0d1a2e 40%, #111f38 100%);
   }
 
   .portal-nav-item {
-    @apply flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-all duration-200;
-    color: rgba(255,255,255,0.6);
+    @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200;
+    color: rgba(255, 255, 255, 0.58);
   }
 
   .portal-nav-item:hover {
-    background: rgba(255, 255, 255, 0.09);
-    color: rgba(255,255,255,0.95);
-    transform: translateX(3px);
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.92);
+    transform: translateX(2px);
   }
 
   .portal-nav-item-active {
-    background: rgba(255, 255, 255, 0.14);
-    color: #ffffff;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.15);
+    background: rgba(245, 166, 35, 0.15);
+    color: #F5A623;
+    border-left: 2px solid #F5A623;
+    padding-left: calc(0.75rem - 2px);
   }
 
   .portal-badge {
     @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold;
-    background: rgba(167, 139, 250, 0.2);
-    color: #c4b5fd;
-    border: 1px solid rgba(167, 139, 250, 0.3);
+    background: rgba(245, 166, 35, 0.15);
+    color: #c8810a;
+    border: 1px solid rgba(245, 166, 35, 0.3);
   }
 
   .portal-chip {
@@ -273,44 +273,45 @@
 
   .portal-btn-accent {
     @apply inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-all duration-200;
-    background: linear-gradient(135deg, #f5a623, #f38b16);
-    color: #13203b;
+    background: linear-gradient(135deg, #F5A623, #e8930f);
+    color: #1B2A4A;
+    font-weight: 700;
+  }
+
+  .portal-btn-accent:hover {
+    filter: brightness(1.06);
+    transform: translateY(-1px);
   }
 
   .portal-btn-ghost {
     @apply inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors;
     border-color: var(--eq-border);
     color: var(--eq-ink-soft);
-    background: color-mix(in srgb, var(--eq-surface) 84%, transparent);
+    background: rgba(255, 255, 255, 0.84);
   }
 
   .portal-btn-ghost:hover {
     color: var(--eq-ink);
-    border-color: color-mix(in srgb, var(--eq-border) 60%, var(--eq-focus) 40%);
+    border-color: rgba(27, 42, 74, 0.3);
+    background: #fff;
   }
 
   .portal-input {
     @apply rounded-lg border px-3 py-2 text-sm outline-none transition-colors;
     border-color: var(--eq-border);
-    background: color-mix(in srgb, var(--eq-surface) 92%, transparent);
+    background: rgba(255, 255, 255, 0.92);
     color: var(--eq-ink);
   }
 
   .portal-input:focus {
-    border-color: var(--eq-focus);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--eq-focus) 22%, transparent);
+    border-color: #1B2A4A;
+    box-shadow: 0 0 0 3px rgba(27, 42, 74, 0.12);
   }
 
   .portal-table-wrap {
     border: 1px solid var(--eq-border);
     border-radius: 14px;
-    background: color-mix(in srgb, var(--eq-surface) 94%, transparent);
+    background: rgba(255, 255, 255, 0.94);
     overflow: hidden;
   }
-}
-
-@keyframes studentGradientMove {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
 }
