@@ -1,12 +1,23 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-const MINDEE_API_KEY = process.env.MINDEE_API_KEY || "";
-const MINDEE_API_URL = "https://api.mindee.net/v1/products";
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
+/**
+ * OCR library — Claude vision is the primary engine.
+ * Mindee SDK is kept as a placeholder for future re-integration if needed.
+ */
 
-if (!MINDEE_API_KEY) {
-  console.warn("Warning: MINDEE_API_KEY not configured. OCR will use Anthropic vision fallback.");
+// ─── Mindee placeholder (not called — kept for reference) ────────────────────
+// const MINDEE_API_KEY = process.env.MINDEE_API_KEY || "";
+// const MINDEE_API_URL = "https://api.mindee.net/v1/products";
+
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
+const CLAUDE_MODEL = "claude-sonnet-4-6";
+const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
+
+if (!ANTHROPIC_API_KEY) {
+  console.warn("[OCR] ANTHROPIC_API_KEY not set — document scanning will fail.");
 }
+
+// ─── Public interfaces (unchanged — callers depend on these) ─────────────────
 
 export interface PassportOCRData {
   mrz1: string;
@@ -47,381 +58,308 @@ export interface MindeeErrorResponse {
   details?: string;
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
 function normalizeDateString(raw: string | null | undefined): string {
   const value = String(raw || "").trim();
   if (!value) return "";
-
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return "";
   return parsed.toISOString().slice(0, 10);
 }
 
-function inferMediaType(fileUrl: string, contentType: string): string {
+type ClaudeMediaType = "image/jpeg" | "image/png" | "image/webp" | "image/gif" | "application/pdf";
+
+function inferMediaType(fileUrl: string, contentType: string): ClaudeMediaType {
   if (contentType.includes("png")) return "image/png";
   if (contentType.includes("webp")) return "image/webp";
-  if (contentType.includes("heic")) return "image/heic";
+  if (contentType.includes("gif")) return "image/gif";
   if (contentType.includes("pdf")) return "application/pdf";
-
   const lower = fileUrl.toLowerCase();
   if (lower.endsWith(".png")) return "image/png";
   if (lower.endsWith(".webp")) return "image/webp";
-  if (lower.endsWith(".heic")) return "image/heic";
+  if (lower.endsWith(".gif")) return "image/gif";
   if (lower.endsWith(".pdf")) return "application/pdf";
   return "image/jpeg";
 }
 
-async function scanPassportWithAnthropic(fileUrl: string): Promise<PassportOCRData> {
-  if (!ANTHROPIC_API_KEY) {
-    throw new Error("Anthropic API key is not configured");
+async function fetchAsBase64(fileUrl: string): Promise<{ base64: string; mediaType: ClaudeMediaType }> {
+  const res = await fetch(fileUrl);
+  if (!res.ok) throw new Error(`Failed to fetch file: HTTP ${res.status}`);
+  const bytes = Buffer.from(await res.arrayBuffer());
+  const contentType = res.headers.get("content-type") || "";
+  return { base64: bytes.toString("base64"), mediaType: inferMediaType(fileUrl, contentType) };
+}
+
+function buildDocumentContent(base64: string, mediaType: ClaudeMediaType): unknown {
+  if (mediaType === "application/pdf") {
+    return { type: "document", source: { type: "base64", media_type: "application/pdf", data: base64 } };
   }
+  return { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } };
+}
 
-  const fileResponse = await fetch(fileUrl);
-  if (!fileResponse.ok) {
-    throw new Error(`Failed to fetch file: HTTP ${fileResponse.status}`);
-  }
+async function callClaude(content: unknown[], maxTokens = 1024): Promise<string> {
+  if (!ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY is not configured");
 
-  const bytes = Buffer.from(await fileResponse.arrayBuffer());
-  const contentType = fileResponse.headers.get("content-type") || "";
-  const mediaType = inferMediaType(fileUrl, contentType);
-
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
+  const res = await fetch(CLAUDE_API_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "x-api-key": ANTHROPIC_API_KEY,
       "anthropic-version": "2023-06-01",
+      "anthropic-beta": "pdfs-2024-09-25",
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 500,
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "image",
-              source: {
-                type: "base64",
-                media_type: mediaType,
-                data: bytes.toString("base64"),
-              },
-            },
-            {
-              type: "text",
-              text: "Extract passport information from this image and return ONLY a JSON object with no markdown:\n{\n  passportNumber: string or null,\n  expiryDate: string in YYYY-MM-DD format or null,\n  firstName: string or null,\n  lastName: string or null,\n  nationality: string or null,\n  dateOfBirth: string in YYYY-MM-DD format or null\n}\nIf this is not a passport or you cannot read the information clearly, return null for each field.",
-            },
-          ],
-        },
-      ],
+      model: CLAUDE_MODEL,
+      max_tokens: maxTokens,
+      messages: [{ role: "user", content }],
     }),
   });
 
-  if (!response.ok) {
-    throw new Error(`Anthropic vision failed: HTTP ${response.status}`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Claude API error ${res.status}: ${body.slice(0, 200)}`);
   }
 
-  const payload = (await response.json()) as { content?: Array<{ type: string; text?: string }> };
-  const text = payload.content?.find((item) => item.type === "text")?.text?.trim() || "";
+  const payload = (await res.json()) as { content?: Array<{ type: string; text?: string }> };
+  const text = payload.content?.find((c) => c.type === "text")?.text?.trim() || "";
+  if (!text) throw new Error("Claude returned empty response");
+  return text;
+}
+
+function extractJson(text: string): unknown {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
-  if (start < 0 || end <= start) {
-    throw new Error("Anthropic vision returned invalid JSON");
+  if (start >= 0 && end > start) {
+    try { return JSON.parse(text.slice(start, end + 1)); } catch { /* fall through */ }
   }
-
-  const parsed = JSON.parse(text.slice(start, end + 1)) as {
-    passportNumber?: string | null;
-    expiryDate?: string | null;
-    firstName?: string | null;
-    lastName?: string | null;
-    nationality?: string | null;
-    dateOfBirth?: string | null;
-  };
-
-  const firstName = String(parsed.firstName || "").trim();
-  const lastName = String(parsed.lastName || "").trim();
-  const passportNumber = String(parsed.passportNumber || "").trim();
-  const expiryDate = normalizeDateString(parsed.expiryDate);
-  const dateOfBirth = normalizeDateString(parsed.dateOfBirth);
-  const nationality = String(parsed.nationality || "").trim();
-
-  if (!firstName && !lastName && !passportNumber && !expiryDate && !dateOfBirth && !nationality) {
-    throw new Error("Anthropic could not extract passport fields");
+  const arrStart = text.indexOf("[");
+  const arrEnd = text.lastIndexOf("]");
+  if (arrStart >= 0 && arrEnd > arrStart) {
+    try { return JSON.parse(text.slice(arrStart, arrEnd + 1)); } catch { /* fall through */ }
   }
-
-  return {
-    mrz1: "",
-    mrz2: "",
-    surname: lastName,
-    givenNames: firstName,
-    dateOfBirth,
-    expiryDate,
-    nationality,
-    documentNumber: passportNumber,
-    confidence: 0.7,
-    source: "anthropic",
-  };
+  throw new Error("No valid JSON found in Claude response");
 }
 
+// ─── Passport OCR ─────────────────────────────────────────────────────────────
+
 /**
- * Scan a document URL and extract passport information using Mindee
+ * Scan a passport image/PDF using Claude vision and extract identity fields.
+ * Mindee is kept as a commented-out placeholder below.
  */
-export async function scanPassport(
-  fileUrl: string,
-): Promise<PassportOCRData | MindeeErrorResponse> {
+export async function scanPassport(fileUrl: string): Promise<PassportOCRData | MindeeErrorResponse> {
   try {
-    if (MINDEE_API_KEY) {
-      try {
-        const fileResponse = await fetch(fileUrl);
-        if (!fileResponse.ok) {
-          throw new Error(`Failed to fetch file: HTTP ${fileResponse.status}`);
-        }
-        const blob = await fileResponse.blob();
+    const { base64, mediaType } = await fetchAsBase64(fileUrl);
+    const docContent = buildDocumentContent(base64, mediaType);
 
-        const formData = new FormData();
-        formData.append("document", blob, "passport.pdf");
-
-        const response = await fetch(`${MINDEE_API_URL}/mindee/passport/v1/predict`, {
-          method: "POST",
-          headers: {
-            "Authorization": `Token ${MINDEE_API_KEY}`,
-          },
-          body: formData,
-        });
-
-        if (!response.ok) {
-          throw new Error(`Mindee API error: HTTP ${response.status}`);
-        }
-
-        const result = await response.json() as any;
-        const document = result.document;
-
-        if (!document) {
-          throw new Error("Invalid response from Mindee API");
-        }
-
-        const prediction = document.inference?.prediction || {};
-        const mrz1 = prediction.mrz1?.raw_value || "";
-        const mrz2 = prediction.mrz2?.raw_value || "";
-        const surname = prediction.surnames?.[0]?.value || "";
-        const givenNames = prediction.given_names?.map((n: any) => n.value).join(" ") || "";
-        const dateOfBirth = normalizeDateString(prediction.birth_date?.value || "");
-        const expiryDate = normalizeDateString(prediction.expiry_date?.value || "");
-        const nationality = prediction.nationality?.value || "";
-        const documentNumber = prediction.document_number?.value || "";
-
-        const confidenceValues = [
-          prediction.surnames?.[0]?.confidence,
-          prediction.given_names?.[0]?.confidence,
-          prediction.birth_date?.confidence,
-          prediction.expiry_date?.confidence,
-          prediction.nationality?.confidence,
-          prediction.document_number?.confidence,
-        ].filter((c: any) => typeof c === "number");
-
-        const confidence =
-          confidenceValues.length > 0
-            ? Math.round((confidenceValues.reduce((a: number, b: number) => a + b, 0) / confidenceValues.length) * 10000) / 10000
-            : 0;
-
-        return {
-          mrz1,
-          mrz2,
-          surname,
-          givenNames,
-          dateOfBirth,
-          expiryDate,
-          nationality,
-          documentNumber,
-          confidence,
-          source: "mindee",
-        };
-      } catch (mindeeError) {
-        console.warn("Mindee passport OCR failed, trying Anthropic fallback:", mindeeError);
-      }
-    }
-
-    const fallback = await scanPassportWithAnthropic(fileUrl);
-    return fallback;
-  } catch (error) {
-    console.error("Passport OCR failed. Falling back to manual review:", error);
-    return {
-      error: "Document uploaded. Please fill in your passport details manually above.",
-    };
-  }
+    const text = await callClaude([
+      docContent,
+      {
+        type: "text",
+        text: `Extract passport information from this document and return ONLY a JSON object with no markdown or explanation:
+{
+  "mrz1": "first MRZ line or empty string",
+  "mrz2": "second MRZ line or empty string",
+  "surname": "family name as printed",
+  "givenNames": "all given/first names space-separated",
+  "dateOfBirth": "YYYY-MM-DD or empty string",
+  "expiryDate": "YYYY-MM-DD or empty string",
+  "nationality": "3-letter ISO nationality code or country name",
+  "documentNumber": "passport/document number",
+  "confidence": 0.0 to 1.0 based on how clearly you can read the document
 }
-
-/**
- * Scan a financial document and extract bank/financial information using Mindee
- */
-export async function scanFinancialDoc(
-  fileUrl: string,
-): Promise<FinancialDocOCRData | MindeeErrorResponse> {
-  try {
-    if (!MINDEE_API_KEY) {
-      throw new Error("MINDEE_API_KEY is not configured");
-    }
-
-    // Fetch file from URL
-    const fileResponse = await fetch(fileUrl);
-    if (!fileResponse.ok) {
-      throw new Error(`Failed to fetch file: HTTP ${fileResponse.status}`);
-    }
-    const blob = await fileResponse.blob();
-
-    // Create FormData with file
-    const formData = new FormData();
-    formData.append("document", blob, "financial.pdf");
-
-    // Send to Mindee API - using invoice parser as it can extract financial document data
-    const response = await fetch(`${MINDEE_API_URL}/mindee/invoice/v4/predict`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Token ${MINDEE_API_KEY}`,
+If a field is unreadable or not present set it to an empty string. Return only the JSON object.`,
       },
-      body: formData,
-    });
+    ], 600);
 
-    if (!response.ok) {
-      throw new Error(`Mindee API error: HTTP ${response.status}`);
+    const parsed = extractJson(text) as {
+      mrz1?: string;
+      mrz2?: string;
+      surname?: string;
+      givenNames?: string;
+      dateOfBirth?: string;
+      expiryDate?: string;
+      nationality?: string;
+      documentNumber?: string;
+      confidence?: number;
+    };
+
+    const surname = String(parsed.surname || "").trim();
+    const givenNames = String(parsed.givenNames || "").trim();
+    const documentNumber = String(parsed.documentNumber || "").trim();
+    const dateOfBirth = normalizeDateString(parsed.dateOfBirth);
+    const expiryDate = normalizeDateString(parsed.expiryDate);
+
+    if (!surname && !givenNames && !documentNumber && !dateOfBirth && !expiryDate) {
+      throw new Error("Claude could not extract any passport fields");
     }
-
-    const result = await response.json() as any;
-    const document = result.document;
-
-    if (!document) {
-      throw new Error("Invalid response from Mindee API");
-    }
-
-    const prediction = document.inference?.prediction || {};
-
-    const accountHolderName = prediction.customer_name?.value || "";
-    const bankName = prediction.supplier_name?.value || "";
-    const accountNumber = prediction.receipt_number?.value || "";
-    const statementDate = prediction.date?.value || "";
-    const closingBalance = parseFloat(prediction.total_amount?.value || "0");
-    const openingBalanceRaw =
-      prediction.total_net?.value ||
-      prediction.total_tax?.value ||
-      prediction.total_base?.value ||
-      null;
-    const openingBalanceParsed = openingBalanceRaw != null ? parseFloat(String(openingBalanceRaw)) : null;
-    const openingBalance = Number.isFinite(openingBalanceParsed || NaN) ? openingBalanceParsed : null;
-    const currency = prediction.locale?.value?.split("-")[0]?.toUpperCase() || "GBP";
-
-    // Extract line items as transactions
-    const transactions = (prediction.line_items || [])
-      .slice(0, 50)
-      .map((item: any) => ({
-        date: item.date?.value || "",
-        description: item.description?.value || "",
-        amount: parseFloat(item.total_amount?.value || item.unit_price?.value || "0"),
-      }));
-
-    // Calculate confidence from critical fields
-    const confidenceValues = [
-      prediction.customer_name?.confidence,
-      prediction.supplier_name?.confidence,
-      prediction.date?.confidence,
-      prediction.total_amount?.confidence,
-    ].filter((c: any) => typeof c === "number");
-
-    const confidence =
-      confidenceValues.length > 0
-        ? Math.round(
-            (confidenceValues.reduce((a: number, b: number) => a + b, 0) / confidenceValues.length) * 10000,
-          ) / 10000
-        : 0;
 
     return {
-      accountHolderName,
-      bankName,
-      accountNumber,
-      statementDate,
+      mrz1: String(parsed.mrz1 || "").trim(),
+      mrz2: String(parsed.mrz2 || "").trim(),
+      surname,
+      givenNames,
+      dateOfBirth,
+      expiryDate,
+      nationality: String(parsed.nationality || "").trim(),
+      documentNumber,
+      confidence: typeof parsed.confidence === "number" ? Math.max(0, Math.min(1, parsed.confidence)) : 0.8,
+      source: "anthropic",
+    };
+
+    // ── Mindee placeholder ────────────────────────────────────────────────────
+    // To re-enable Mindee, replace the block above with the implementation below:
+    //
+    // const blob = await (await fetch(fileUrl)).blob();
+    // const formData = new FormData();
+    // formData.append("document", blob, "passport.pdf");
+    // const res = await fetch(`${MINDEE_API_URL}/mindee/passport/v1/predict`, {
+    //   method: "POST",
+    //   headers: { Authorization: `Token ${MINDEE_API_KEY}` },
+    //   body: formData,
+    // });
+    // const result = await res.json();
+    // const prediction = result.document?.inference?.prediction || {};
+    // return { mrz1: prediction.mrz1?.raw_value || "", ... };
+    // ─────────────────────────────────────────────────────────────────────────
+
+  } catch (error) {
+    console.error("[scanPassport] Claude OCR failed:", error);
+    return { error: "Document uploaded. Please fill in your passport details manually above." };
+  }
+}
+
+// ─── Financial Document OCR ───────────────────────────────────────────────────
+
+/**
+ * Scan a bank statement or financial document using Claude vision.
+ * Mindee is kept as a commented-out placeholder below.
+ */
+export async function scanFinancialDoc(fileUrl: string): Promise<FinancialDocOCRData | MindeeErrorResponse> {
+  try {
+    const { base64, mediaType } = await fetchAsBase64(fileUrl);
+    const docContent = buildDocumentContent(base64, mediaType);
+
+    const text = await callClaude([
+      docContent,
+      {
+        type: "text",
+        text: `Extract bank/financial statement information from this document and return ONLY a JSON object with no markdown:
+{
+  "accountHolderName": "full name of account holder",
+  "bankName": "name of the bank or financial institution",
+  "accountNumber": "account number (partial is fine if full is not visible)",
+  "statementDate": "YYYY-MM-DD statement end date or most recent date",
+  "closingBalance": numeric closing/ending balance (number, no currency symbols),
+  "openingBalance": numeric opening/starting balance or null if not shown,
+  "currency": "3-letter ISO currency code e.g. GBP USD EUR",
+  "transactions": [
+    { "date": "YYYY-MM-DD", "description": "transaction description", "amount": numeric signed amount }
+  ],
+  "confidence": 0.0 to 1.0
+}
+Include up to 50 transactions. Use negative amounts for debits/withdrawals. Return only the JSON.`,
+      },
+    ], 2048);
+
+    const parsed = extractJson(text) as {
+      accountHolderName?: string;
+      bankName?: string;
+      accountNumber?: string;
+      statementDate?: string;
+      closingBalance?: unknown;
+      openingBalance?: unknown;
+      currency?: string;
+      transactions?: Array<{ date?: string; description?: string; amount?: unknown }>;
+      confidence?: number;
+    };
+
+    const closingBalance = parseFloat(String(parsed.closingBalance ?? "0")) || 0;
+    const openingBalanceRaw = parsed.openingBalance != null ? parseFloat(String(parsed.openingBalance)) : null;
+    const openingBalance = openingBalanceRaw !== null && isFinite(openingBalanceRaw) ? openingBalanceRaw : null;
+
+    const transactions = (parsed.transactions || []).slice(0, 50).map((t) => ({
+      date: normalizeDateString(String(t.date || "")),
+      description: String(t.description || "").trim(),
+      amount: parseFloat(String(t.amount ?? "0")) || 0,
+    }));
+
+    return {
+      accountHolderName: String(parsed.accountHolderName || "").trim(),
+      bankName: String(parsed.bankName || "").trim(),
+      accountNumber: String(parsed.accountNumber || "").trim(),
+      statementDate: normalizeDateString(parsed.statementDate),
       closingBalance,
       openingBalance,
-      currency,
+      currency: String(parsed.currency || "GBP").trim().toUpperCase().slice(0, 3),
       transactions,
-      confidence,
+      confidence: typeof parsed.confidence === "number" ? Math.max(0, Math.min(1, parsed.confidence)) : 0.8,
     };
+
+    // ── Mindee placeholder ────────────────────────────────────────────────────
+    // const blob = await (await fetch(fileUrl)).blob();
+    // const formData = new FormData();
+    // formData.append("document", blob, "financial.pdf");
+    // const res = await fetch(`${MINDEE_API_URL}/mindee/invoice/v4/predict`, {
+    //   method: "POST",
+    //   headers: { Authorization: `Token ${MINDEE_API_KEY}` },
+    //   body: formData,
+    // });
+    // const result = await res.json();
+    // const prediction = result.document?.inference?.prediction || {};
+    // return { accountHolderName: prediction.customer_name?.value || "", ... };
+    // ─────────────────────────────────────────────────────────────────────────
+
   } catch (error) {
-    console.error("Mindee financial document scan failed:", error);
+    console.error("[scanFinancialDoc] Claude OCR failed:", error);
     return {
       error: `Financial document scan failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-      details: error instanceof Error ? error.stack : undefined,
     };
   }
 }
 
+// ─── Generic Document OCR ─────────────────────────────────────────────────────
+
 /**
- * Scan a generic document and extract text using Mindee
+ * Extract all text from a document using Claude vision.
+ * Mindee is kept as a commented-out placeholder below.
  */
-export async function scanGenericDoc(
-  fileUrl: string,
-): Promise<GenericDocOCRData | MindeeErrorResponse> {
+export async function scanGenericDoc(fileUrl: string): Promise<GenericDocOCRData | MindeeErrorResponse> {
   try {
-    if (!MINDEE_API_KEY) {
-      throw new Error("MINDEE_API_KEY is not configured");
-    }
+    const { base64, mediaType } = await fetchAsBase64(fileUrl);
+    const docContent = buildDocumentContent(base64, mediaType);
 
-    // Fetch file from URL
-    const fileResponse = await fetch(fileUrl);
-    if (!fileResponse.ok) {
-      throw new Error(`Failed to fetch file: HTTP ${fileResponse.status}`);
-    }
-    const blob = await fileResponse.blob();
-
-    // Create FormData with file
-    const formData = new FormData();
-    formData.append("document", blob, "document.pdf");
-
-    // Send to Mindee API - using document type classifier
-    const response = await fetch(`${MINDEE_API_URL}/mindee/document_type/v1/predict`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Token ${MINDEE_API_KEY}`,
+    const text = await callClaude([
+      docContent,
+      {
+        type: "text",
+        text: "Extract and transcribe ALL visible text from this document exactly as it appears, preserving structure and layout. Return only the extracted text with no additional commentary.",
       },
-      body: formData,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Mindee API error: HTTP ${response.status}`);
-    }
-
-    const result = await response.json() as any;
-    const document = result.document;
-
-    if (!document) {
-      throw new Error("Invalid response from Mindee API");
-    }
-
-    const prediction = document.inference?.prediction || {};
-
-    // Get document type classification
-    const documentType = prediction.document_type?.value || "Generic Document";
-    const classificationConfidence = prediction.document_type?.confidence || 0.5;
-
-    // Extract text from pages if available
-    const pages = document.inference?.pages || [];
-    let extractedText = "";
-
-    for (const page of pages) {
-      if (page.prediction?.text) {
-        extractedText += page.prediction.text + "\n";
-      } else if (page.raw_text) {
-        extractedText += page.raw_text + "\n";
-      }
-    }
+    ], 2048);
 
     return {
-      extractedText: extractedText.trim() || `Document Type: ${documentType}`,
-      confidence: Math.round(classificationConfidence * 10000) / 10000,
+      extractedText: text,
+      confidence: 0.9,
     };
+
+    // ── Mindee placeholder ────────────────────────────────────────────────────
+    // const blob = await (await fetch(fileUrl)).blob();
+    // const formData = new FormData();
+    // formData.append("document", blob, "document.pdf");
+    // const res = await fetch(`${MINDEE_API_URL}/mindee/document_type/v1/predict`, {
+    //   method: "POST",
+    //   headers: { Authorization: `Token ${MINDEE_API_KEY}` },
+    //   body: formData,
+    // });
+    // const result = await res.json();
+    // ...
+    // ─────────────────────────────────────────────────────────────────────────
+
   } catch (error) {
-    console.error("Mindee generic document scan failed:", error);
+    console.error("[scanGenericDoc] Claude OCR failed:", error);
     return {
       error: `Generic document scan failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-      details: error instanceof Error ? error.stack : undefined,
     };
   }
 }

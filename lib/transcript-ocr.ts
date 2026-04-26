@@ -1,3 +1,8 @@
+/**
+ * Transcript OCR — Claude vision is the primary engine.
+ * Mindee endpoints are kept as commented-out placeholders.
+ */
+
 import Fuse from "fuse.js";
 import { SubjectCategory } from "@prisma/client";
 
@@ -26,24 +31,18 @@ type FuseSubjectRecord = {
   alias: string;
 };
 
-const MINDEE_API_KEY = process.env.MINDEE_API_KEY || "";
-const MINDEE_API_URL = "https://api.mindee.net/v1/products";
+// ── Mindee placeholders (not called — kept for reference) ────────────────────
+// const MINDEE_API_KEY = process.env.MINDEE_API_KEY || "";
+// const MINDEE_API_URL = "https://api.mindee.net/v1/products";
+// const EDUCATION_MODEL_ENDPOINTS = [...];
+// const TABLE_MODEL_ENDPOINTS    = [...];
+// const GENERIC_MODEL_ENDPOINTS  = [...];
+// ────────────────────────────────────────────────────────────────────────────
 
-const EDUCATION_MODEL_ENDPOINTS = [
-  `${MINDEE_API_URL}/mindee/education/v1/predict`,
-  `${MINDEE_API_URL}/mindee/transcript/v1/predict`,
-  `${MINDEE_API_URL}/mindee/report_card/v1/predict`,
-];
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
+const CLAUDE_MODEL = "claude-sonnet-4-6";
 
-const TABLE_MODEL_ENDPOINTS = [
-  `${MINDEE_API_URL}/mindee/table_recognition/v1/predict`,
-  `${MINDEE_API_URL}/mindee/invoice/v4/predict`,
-];
-
-const GENERIC_MODEL_ENDPOINTS = [
-  `${MINDEE_API_URL}/mindee/document_type/v1/predict`,
-  `${MINDEE_API_URL}/mindee/invoice/v4/predict`,
-];
+// ─── Subject master list ─────────────────────────────────────────────────────
 
 export const SUBJECT_MASTER_LIST: SubjectMasterEntry[] = [
   { canonicalName: "Mathematics", subjectCategory: "STEM", aliases: ["Maths", "Math", "Additional Mathematics", "Further Maths", "Further Mathematics", "Ganit", "Hisab"] },
@@ -117,6 +116,8 @@ export const SUBJECT_MASTER_LIST: SubjectMasterEntry[] = [
   { canonicalName: "Bangladesh and Global Studies", subjectCategory: "HUMANITIES", aliases: ["BGS", "Social and Global Studies"] },
 ];
 
+// ─── Fuse.js subject matcher ─────────────────────────────────────────────────
+
 const fuseRecords: FuseSubjectRecord[] = SUBJECT_MASTER_LIST.flatMap((subject) => [
   { canonicalName: subject.canonicalName, subjectCategory: subject.subjectCategory, alias: subject.canonicalName },
   ...subject.aliases.map((alias) => ({
@@ -134,154 +135,10 @@ const subjectFuse = new Fuse(fuseRecords, {
   minMatchCharLength: 2,
 });
 
-function mapQualType(input: string): "EDUCATION" | "TABLE" | "GENERIC" {
-  const q = input.trim().toUpperCase();
-
-  if (q === "WAEC" || q === "GCSE" || q === "A_LEVEL" || q === "O_LEVEL" || q === "GCSE_ALEVEL") {
-    return "EDUCATION";
-  }
-
-  if (q === "SSC" || q === "HSC" || q === "SSC_HSC") {
-    return "TABLE";
-  }
-
-  return "GENERIC";
-}
-
-async function fetchFileBlob(fileUrl: string): Promise<Blob> {
-  const response = await fetch(fileUrl);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch transcript file (${response.status})`);
-  }
-  return response.blob();
-}
-
-async function submitToMindee(blob: Blob, endpoints: string[]): Promise<Record<string, unknown>> {
-  if (!MINDEE_API_KEY) {
-    throw new Error("MINDEE_API_KEY is not configured");
-  }
-
-  let lastError = "";
-
-  for (const endpoint of endpoints) {
-    const formData = new FormData();
-    formData.append("document", blob, "transcript.pdf");
-
-    try {
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          Authorization: `Token ${MINDEE_API_KEY}`,
-        },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        lastError = `Mindee ${endpoint} failed (${response.status})`;
-        continue;
-      }
-
-      return (await response.json()) as Record<string, unknown>;
-    } catch (error) {
-      lastError = error instanceof Error ? error.message : "Unknown Mindee request error";
-    }
-  }
-
-  throw new Error(lastError || "Mindee request failed");
-}
-
-function walkForRows(node: unknown, rows: TranscriptOcrRow[]): void {
-  if (!node) return;
-
-  if (Array.isArray(node)) {
-    node.forEach((item) => walkForRows(item, rows));
-    return;
-  }
-
-  if (typeof node !== "object") return;
-
-  const record = node as Record<string, unknown>;
-
-  const subjectCandidate =
-    record.subject ||
-    record.subject_name ||
-    record.course ||
-    record.course_name ||
-    record.paper ||
-    record.name ||
-    null;
-
-  const gradeCandidate =
-    record.grade ||
-    record.result ||
-    record.mark ||
-    record.score ||
-    record.value ||
-    null;
-
-  const confidenceCandidate =
-    record.confidence ||
-    record.probability ||
-    record.reliability ||
-    null;
-
-  if (typeof subjectCandidate === "string" && typeof gradeCandidate === "string") {
-    const confidence = typeof confidenceCandidate === "number" ? confidenceCandidate : 0.75;
-    rows.push({
-      subjectName: subjectCandidate.trim(),
-      rawGrade: gradeCandidate.trim(),
-      confidence: Math.max(0, Math.min(1, confidence)),
-    });
-  }
-
-  Object.values(record).forEach((child) => walkForRows(child, rows));
-}
-
-function parseGenericTextRows(text: string): TranscriptOcrRow[] {
-  const lines = text
-    .split(/\r?\n/g)
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  const rows: TranscriptOcrRow[] = [];
-
-  for (const line of lines) {
-    const match = line.match(/^([A-Za-z0-9().,\-\s/&]+?)\s+([A-F][*]?|[A-F][1-9]?|[BCDE]\d|\d+(?:\.\d+)?%?)$/i);
-    if (!match) continue;
-
-    rows.push({
-      subjectName: match[1].trim(),
-      rawGrade: match[2].trim(),
-      confidence: 0.65,
-    });
-  }
-
-  return rows;
-}
-
-function dedupeRows(rows: TranscriptOcrRow[]): TranscriptOcrRow[] {
-  const byKey = new Map<string, TranscriptOcrRow>();
-
-  for (const row of rows) {
-    const key = `${row.subjectName.toLowerCase()}::${row.rawGrade.toUpperCase()}`;
-    const existing = byKey.get(key);
-    if (!existing || row.confidence > existing.confidence) {
-      byKey.set(key, row);
-    }
-  }
-
-  return Array.from(byKey.values());
-}
-
 export function matchSubjectName(rawSubjectName: string): SubjectMatchResult {
   const query = rawSubjectName.trim();
   if (!query) {
-    return {
-      matchedName: null,
-      subjectCategory: "OTHER",
-      confidence: 0,
-      isMatched: false,
-    };
+    return { matchedName: null, subjectCategory: "OTHER", confidence: 0, isMatched: false };
   }
 
   const direct = SUBJECT_MASTER_LIST.find((entry) => {
@@ -290,66 +147,146 @@ export function matchSubjectName(rawSubjectName: string): SubjectMatchResult {
   });
 
   if (direct) {
-    return {
-      matchedName: direct.canonicalName,
-      subjectCategory: direct.subjectCategory,
-      confidence: 1,
-      isMatched: true,
-    };
+    return { matchedName: direct.canonicalName, subjectCategory: direct.subjectCategory, confidence: 1, isMatched: true };
   }
 
   const results = subjectFuse.search(query, { limit: 1 });
   if (!results.length) {
-    return {
-      matchedName: null,
-      subjectCategory: "OTHER",
-      confidence: 0,
-      isMatched: false,
-    };
+    return { matchedName: null, subjectCategory: "OTHER", confidence: 0, isMatched: false };
   }
 
   const top = results[0];
   const confidence = 1 - (top.score ?? 1);
 
   if (confidence < 0.7) {
-    return {
-      matchedName: null,
-      subjectCategory: "OTHER",
-      confidence,
-      isMatched: false,
-    };
+    return { matchedName: null, subjectCategory: "OTHER", confidence, isMatched: false };
   }
 
-  return {
-    matchedName: top.item.canonicalName,
-    subjectCategory: top.item.subjectCategory,
-    confidence,
-    isMatched: true,
-  };
+  return { matchedName: top.item.canonicalName, subjectCategory: top.item.subjectCategory, confidence, isMatched: true };
 }
 
+// ─── Claude transcript scanner ───────────────────────────────────────────────
+
+type ClaudeMediaType = "image/jpeg" | "image/png" | "image/webp" | "image/gif" | "application/pdf";
+
+function inferMediaType(fileUrl: string, contentType: string): ClaudeMediaType {
+  if (contentType.includes("png")) return "image/png";
+  if (contentType.includes("webp")) return "image/webp";
+  if (contentType.includes("gif")) return "image/gif";
+  if (contentType.includes("pdf")) return "application/pdf";
+  const lower = fileUrl.toLowerCase();
+  if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".webp")) return "image/webp";
+  if (lower.endsWith(".gif")) return "image/gif";
+  if (lower.endsWith(".pdf")) return "application/pdf";
+  return "image/jpeg";
+}
+
+function buildDocContent(base64: string, mediaType: ClaudeMediaType): unknown {
+  if (mediaType === "application/pdf") {
+    return { type: "document", source: { type: "base64", media_type: "application/pdf", data: base64 } };
+  }
+  return { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } };
+}
+
+function dedupeRows(rows: TranscriptOcrRow[]): TranscriptOcrRow[] {
+  const byKey = new Map<string, TranscriptOcrRow>();
+  for (const row of rows) {
+    const key = `${row.subjectName.toLowerCase()}::${row.rawGrade.toUpperCase()}`;
+    const existing = byKey.get(key);
+    if (!existing || row.confidence > existing.confidence) byKey.set(key, row);
+  }
+  return Array.from(byKey.values());
+}
+
+/**
+ * Scan an academic transcript using Claude vision.
+ * Returns an array of subject/grade rows extracted from the document.
+ *
+ * Mindee placeholder for re-integration:
+ * // const blob = await fetchFileBlob(fileUrl);
+ * // const payload = await submitToMindee(blob, endpoints);
+ * // walkForRows(payload, rows);
+ */
 export async function scanTranscript(fileUrl: string, qualType: string): Promise<TranscriptOcrRow[]> {
-  const route = mapQualType(qualType);
-  const blob = await fetchFileBlob(fileUrl);
-
-  const endpoints =
-    route === "EDUCATION"
-      ? EDUCATION_MODEL_ENDPOINTS
-      : route === "TABLE"
-        ? TABLE_MODEL_ENDPOINTS
-        : GENERIC_MODEL_ENDPOINTS;
-
-  const payload = await submitToMindee(blob, endpoints);
-
-  const rows: TranscriptOcrRow[] = [];
-  walkForRows(payload, rows);
-
-  if (!rows.length) {
-    const rawText = JSON.stringify(payload);
-    rows.push(...parseGenericTextRows(rawText));
+  if (!ANTHROPIC_API_KEY) {
+    console.error("[scanTranscript] ANTHROPIC_API_KEY not set");
+    return [];
   }
 
-  return dedupeRows(rows).filter((row) => row.subjectName && row.rawGrade);
+  const res = await fetch(fileUrl);
+  if (!res.ok) throw new Error(`Failed to fetch transcript file (${res.status})`);
+  const bytes = Buffer.from(await res.arrayBuffer());
+  const contentType = res.headers.get("content-type") || "";
+  const mediaType = inferMediaType(fileUrl, contentType);
+  const base64 = bytes.toString("base64");
+
+  const qualHint = qualType ? ` This is a ${qualType} qualification transcript.` : "";
+
+  const apiRes = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01",
+      "anthropic-beta": "pdfs-2024-09-25",
+    },
+    body: JSON.stringify({
+      model: CLAUDE_MODEL,
+      max_tokens: 2048,
+      messages: [
+        {
+          role: "user",
+          content: [
+            buildDocContent(base64, mediaType),
+            {
+              type: "text",
+              text: `Extract all subject names and their grades/results from this academic transcript.${qualHint}
+Return ONLY a JSON array with no markdown:
+[
+  { "subjectName": "exact subject name as printed", "rawGrade": "grade or result as printed e.g. A, B+, 85, Pass", "confidence": 0.0 to 1.0 },
+  ...
+]
+Include every subject row you can see. If you cannot read a subject or grade clearly, use your best guess and set confidence below 0.6. Return only the JSON array.`,
+            },
+          ],
+        },
+      ],
+    }),
+  });
+
+  if (!apiRes.ok) {
+    const body = await apiRes.text().catch(() => "");
+    throw new Error(`Claude transcript OCR failed: ${apiRes.status} ${body.slice(0, 200)}`);
+  }
+
+  const payload = (await apiRes.json()) as { content?: Array<{ type: string; text?: string }> };
+  const text = payload.content?.find((c) => c.type === "text")?.text?.trim() || "";
+
+  const arrStart = text.indexOf("[");
+  const arrEnd = text.lastIndexOf("]");
+  if (arrStart < 0 || arrEnd <= arrStart) {
+    console.warn("[scanTranscript] No JSON array in Claude response:", text.slice(0, 300));
+    return [];
+  }
+
+  let parsed: Array<{ subjectName?: string; rawGrade?: string; confidence?: number }>;
+  try {
+    parsed = JSON.parse(text.slice(arrStart, arrEnd + 1));
+  } catch {
+    console.warn("[scanTranscript] Failed to parse Claude JSON array");
+    return [];
+  }
+
+  const rows: TranscriptOcrRow[] = parsed
+    .filter((r) => r.subjectName && r.rawGrade)
+    .map((r) => ({
+      subjectName: String(r.subjectName).trim(),
+      rawGrade: String(r.rawGrade).trim(),
+      confidence: typeof r.confidence === "number" ? Math.max(0, Math.min(1, r.confidence)) : 0.75,
+    }));
+
+  return dedupeRows(rows).filter((r) => r.subjectName && r.rawGrade);
 }
 
 export const SUBJECT_MASTER = SUBJECT_MASTER_LIST;
