@@ -3437,7 +3437,8 @@ export default function StudentDetailClient({
             <div className="rounded-lg border border-slate-200 bg-white p-6">
               <MockInterviewTab
                 listEndpoint={`/api/counsellor/students/${student.id}/mock-interviews`}
-                canAssign={false}
+                canAssign={canEdit}
+                studentId={student.id}
                 scope="dashboard"
               />
             </div>

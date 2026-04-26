@@ -46,17 +46,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Students cannot assign mock interviews" }, { status: 403 });
     }
 
-    let universityAboutText = normalizeUrlText(payload.universityAboutText);
-    let sampleQuestionsText = normalizeUrlText(payload.sampleQuestionsText);
+    // ── Scrape all URLs in parallel ──────────────────────────────────────────
+    const [universityText, courseText, sampleText] = await Promise.all([
+      payload.universityAboutUrl && !normalizeUrlText(payload.universityAboutText)
+        ? fetchAndExtractUrlText(payload.universityAboutUrl).catch(() => "")
+        : Promise.resolve(normalizeUrlText(payload.universityAboutText) || ""),
 
-    if (!universityAboutText && payload.universityAboutUrl) {
-      universityAboutText = await fetchAndExtractUrlText(payload.universityAboutUrl);
-    }
+      payload.courseUrl
+        ? fetchAndExtractUrlText(payload.courseUrl).catch(() => "")
+        : Promise.resolve(""),
 
-    if (!sampleQuestionsText && payload.sampleQuestionsUrl) {
-      sampleQuestionsText = await fetchAndExtractUrlText(payload.sampleQuestionsUrl);
-    }
+      payload.sampleQuestionsUrl && !normalizeUrlText(payload.sampleQuestionsText)
+        ? fetchAndExtractUrlText(payload.sampleQuestionsUrl).catch(() => "")
+        : Promise.resolve(normalizeUrlText(payload.sampleQuestionsText) || ""),
+    ]);
 
+    // Merge course page content into the university text block
+    const universityAboutText = [
+      universityText,
+      courseText ? `--- COURSE PAGE ---\n${courseText}` : "",
+    ].filter(Boolean).join("\n\n");
+
+    const sampleQuestionsText = sampleText;
+
+    // ── Extract offer-letter facts ────────────────────────────────────────────
     let extracted = {
       extractedUniversity: payload.extractedUniversity || null,
       extractedCourse: payload.extractedCourse || null,
@@ -65,10 +78,76 @@ export async function POST(req: NextRequest) {
       extractedStartDate: payload.extractedStartDate || null,
     };
 
-    if ((!extracted.extractedUniversity || !extracted.extractedCourse) && sampleQuestionsText) {
-      extracted = { ...extracted, ...extractOfferLetterFacts(sampleQuestionsText) };
+    const extractSource = universityAboutText || sampleQuestionsText;
+    if ((!extracted.extractedUniversity || !extracted.extractedCourse) && extractSource) {
+      extracted = { ...extracted, ...extractOfferLetterFacts(extractSource) };
     }
 
+    // ── Pull student finance data for this application ────────────────────────
+    const financeRecord = await db.financeRecord.findUnique({
+      where: { applicationId: payload.applicationId },
+      include: {
+        bankAccounts: true,
+        fundingSources: true,
+      },
+    }).catch(() => null);
+
+    let financeContext = "";
+    if (financeRecord) {
+      const ccy = financeRecord.courseFeeCurrency || "GBP";
+      const fmt = (n: number) => n.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+      const lines: string[] = [
+        "--- STUDENT FINANCE SUMMARY (use for financial interview questions) ---",
+        `Course Fee: ${ccy} ${fmt(financeRecord.courseFee)}`,
+        financeRecord.scholarshipFinal > 0
+          ? `Scholarship Applied: ${ccy} ${fmt(financeRecord.scholarshipFinal)}`
+          : "",
+        `Deposit Paid: ${ccy} ${fmt(financeRecord.depositPaid)}`,
+        financeRecord.remainingTuition > 0
+          ? `Remaining Tuition: ${ccy} ${fmt(financeRecord.remainingTuition)}`
+          : "",
+        financeRecord.livingExpenses > 0
+          ? `Estimated Living Expenses: ${ccy} ${fmt(financeRecord.livingExpenses)}`
+          : "",
+        financeRecord.totalToShowInBank > 0
+          ? `Total Required in Bank Account: ${ccy} ${fmt(financeRecord.totalToShowInBank)}`
+          : "",
+        financeRecord.selectedSources.length > 0
+          ? `Declared Funding Sources: ${financeRecord.selectedSources.join(", ")}`
+          : "",
+        financeRecord.durationMonths > 0
+          ? `Course Duration: ${financeRecord.durationMonths} months`
+          : "",
+      ];
+
+      for (const acct of financeRecord.bankAccounts) {
+        const owner =
+          acct.accountOwner === "MY_OWN" ? "Own Account"
+          : acct.accountOwner === "SOMEONE_ELSE" ? "Third-Party Account"
+          : "Joint Account";
+        lines.push(
+          `Bank Account: ${acct.bankName}${acct.customBankName ? ` (${acct.customBankName})` : ""} — ` +
+          `${acct.accountCurrency} ${fmt(acct.totalAmount)} [${acct.accountType}, ${owner}, ${acct.country}]` +
+          (acct.allocatedAmount > 0 ? ` — Allocated: ${acct.accountCurrency} ${fmt(acct.allocatedAmount)}` : ""),
+        );
+      }
+
+      for (const src of financeRecord.fundingSources) {
+        if (src.declaredAmount > 0) {
+          lines.push(`Funding — ${src.sourceType}: ${ccy} ${fmt(src.declaredAmount)}`);
+        }
+      }
+
+      financeContext = lines.filter(Boolean).join("\n");
+    }
+
+    // Attach finance context to the staff instructions
+    const customInstructions = [payload.customInstructions?.trim(), financeContext]
+      .filter(Boolean)
+      .join("\n\n");
+
+    // ── Count previous attempts ───────────────────────────────────────────────
     const attempts = await db.mockInterview.count({
       where: {
         applicationId: payload.applicationId,
@@ -90,7 +169,7 @@ export async function POST(req: NextRequest) {
         sampleQuestionsUrl: payload.sampleQuestionsUrl || null,
         sampleQuestionsText: sampleQuestionsText || null,
         customQuestions: payload.customQuestions ?? null,
-        customInstructions: payload.customInstructions || null,
+        customInstructions: customInstructions || null,
         passingScore: payload.passingScore ?? 80,
         attemptNumber: attempts + 1,
         extractedUniversity: extracted.extractedUniversity,
