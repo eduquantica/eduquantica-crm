@@ -193,7 +193,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       cityCountry: interview.application.course.university.country,
     };
 
-    if (evalResult.followUpNeeded && evalResult.followUpQuestion) {
+    // Only generate a follow-up if this was NOT already a follow-up answer
+    // (prevents infinite loops where Claude keeps requesting follow-ups)
+    if (!payload.isFollowUp && evalResult.followUpNeeded && evalResult.followUpQuestion) {
       return NextResponse.json({
         data: {
           next: {

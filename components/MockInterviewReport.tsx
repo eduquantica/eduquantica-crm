@@ -28,14 +28,65 @@ type ReportModel = {
   } | null;
 };
 
+type EligibilityData = {
+  overallMet: boolean;
+  englishMet: boolean | null;
+  matchScore: number;
+} | null;
+
+type FinanceData = {
+  depositPaid: number;
+  totalToShowInBank: number;
+  courseFeeCurrency: string;
+} | null;
+
+type StudentEnglish = {
+  englishTestType: string | null;
+  englishTestScore: string | null;
+} | null;
+
 function asStringArray(value: unknown) {
   return Array.isArray(value) ? value.filter((x): x is string => typeof x === "string") : [];
 }
 
-export default function MockInterviewReport({ interview }: { interview: ReportModel }) {
+function ReqRow({ label, met, detail }: { label: string; met: boolean | null; detail?: string }) {
+  const icon = met === null ? "—" : met ? "✓" : "✗";
+  const cls = met === null ? "text-slate-400" : met ? "text-emerald-600" : "text-rose-600";
+  return (
+    <div className="flex items-start gap-2 text-sm">
+      <span className={`mt-0.5 font-bold shrink-0 ${cls}`}>{icon}</span>
+      <div>
+        <span className="font-medium text-slate-800">{label}</span>
+        {detail && <span className="ml-2 text-slate-500 text-xs">({detail})</span>}
+      </div>
+    </div>
+  );
+}
+
+export default function MockInterviewReport({
+  interview,
+  eligibility,
+  finance,
+  studentEnglish,
+}: {
+  interview: ReportModel;
+  eligibility?: EligibilityData;
+  finance?: FinanceData;
+  studentEnglish?: StudentEnglish;
+}) {
   const strengths = asStringArray(interview.report?.strengths);
   const areas = asStringArray(interview.report?.areasToImprove);
   const inconsistencies = asStringArray(interview.report?.inconsistenciesFound);
+
+  const financeMet =
+    finance !== undefined && finance !== null
+      ? finance.totalToShowInBank > 0 && finance.depositPaid > 0
+      : null;
+
+  const englishDetail =
+    studentEnglish?.englishTestType
+      ? `${studentEnglish.englishTestType}${studentEnglish.englishTestScore ? ` — ${studentEnglish.englishTestScore}` : ""}`
+      : undefined;
 
   return (
     <section className="space-y-4">
@@ -67,6 +118,35 @@ export default function MockInterviewReport({ interview }: { interview: ReportMo
           <p className="text-xs text-slate-500">Result</p>
           <p className="mt-1 text-2xl font-bold text-slate-900">{interview.recommendation || "Pending"}</p>
         </article>
+      </div>
+
+      {/* Requirements checklist */}
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 space-y-2.5">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">Requirements Summary</p>
+        <ReqRow
+          label="Entry Requirements"
+          met={eligibility?.overallMet ?? null}
+          detail={eligibility ? `${eligibility.matchScore.toFixed(0)}% match` : undefined}
+        />
+        <ReqRow
+          label="English Language Requirement"
+          met={eligibility?.englishMet ?? null}
+          detail={englishDetail}
+        />
+        <ReqRow
+          label="Financial Requirement"
+          met={financeMet}
+          detail={
+            finance
+              ? `Deposit paid: ${finance.courseFeeCurrency} ${finance.depositPaid.toLocaleString()} · Required in bank: ${finance.courseFeeCurrency} ${finance.totalToShowInBank.toLocaleString()}`
+              : undefined
+          }
+        />
+        <ReqRow
+          label="Pre-CAS / Mock Interview"
+          met={interview.report?.isPassed ?? null}
+          detail={interview.report ? `Score: ${interview.report.overallScore.toFixed(1)}%` : undefined}
+        />
       </div>
 
       {interview.report ? (

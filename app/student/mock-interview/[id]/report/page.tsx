@@ -19,8 +19,10 @@ export default async function StudentMockInterviewReportPage({ params }: { param
     include: {
       application: {
         select: {
+          id: true,
           course: {
             select: {
+              id: true,
               name: true,
               university: { select: { name: true, country: true } },
             },
@@ -33,9 +35,29 @@ export default async function StudentMockInterviewReportPage({ params }: { param
 
   if (!interview) redirect("/student/mock-interview");
 
+  const [eligibility, finance, studentData] = await Promise.all([
+    db.courseEligibilityResult.findUnique({
+      where: { studentId_courseId: { studentId: student.id, courseId: interview.application.course.id } },
+      select: { overallMet: true, englishMet: true, matchScore: true },
+    }),
+    db.financeRecord.findUnique({
+      where: { applicationId: interview.applicationId },
+      select: { depositPaid: true, totalToShowInBank: true, courseFeeCurrency: true },
+    }),
+    db.student.findUnique({
+      where: { id: student.id },
+      select: { englishTestType: true, englishTestScore: true },
+    }),
+  ]);
+
   return (
     <main className="mx-auto w-full max-w-6xl">
-      <MockInterviewReport interview={interview} />
+      <MockInterviewReport
+        interview={interview}
+        eligibility={eligibility}
+        finance={finance}
+        studentEnglish={studentData}
+      />
     </main>
   );
 }

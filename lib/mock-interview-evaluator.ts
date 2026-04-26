@@ -141,7 +141,7 @@ async function callClaude(input: EvalInput): Promise<AnswerEvaluationResult> {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-latest",
+        model: "claude-sonnet-4-6",
         max_tokens: 1000,
         temperature: 0.2,
         system: EVALUATOR_SYSTEM_PROMPT,
@@ -256,7 +256,7 @@ export async function generateMockInterviewReportWithClaude(input: {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-latest",
+        model: "claude-sonnet-4-6",
         max_tokens: 1400,
         temperature: 0.2,
         system:
