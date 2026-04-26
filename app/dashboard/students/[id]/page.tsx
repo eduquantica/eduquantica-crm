@@ -47,8 +47,12 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
     return <p className="p-6">Student not found</p>;
   }
 
-  // counsellor filter
-  if (session.user.roleName === "COUNSELLOR" && student.assignedCounsellorId !== session.user.id) {
+  // Gate: counsellors only see their assigned students; sub-agent counsellors only see their own
+  const role = session.user.roleName;
+  if (role === "COUNSELLOR" && student.assignedCounsellorId !== session.user.id) {
+    return <p className="p-6">Forbidden</p>;
+  }
+  if (role === "SUB_AGENT_COUNSELLOR" && student.subAgentStaffId !== session.user.id) {
     return <p className="p-6">Forbidden</p>;
   }
 

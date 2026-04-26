@@ -9,9 +9,12 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  UserCheck,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import StudyGapIndicator from "@/components/ui/StudyGapIndicator";
+import { useModulePermissions } from "@/lib/permissions";
 
 interface StudentRow {
   id: string;
@@ -151,8 +154,6 @@ function Paginator({
   );
 }
 
-import { useModulePermissions } from "@/lib/permissions";
-
 export default function StudentsClient({
   role,
   counsellors,
@@ -163,7 +164,9 @@ export default function StudentsClient({
   subAgents: Array<{ id: string; agencyName: string }>;
 }) {
   const perms = useModulePermissions("students");
-  const isCounsellor = role === "COUNSELLOR";
+  const isCounsellor = role === "COUNSELLOR" || role === "SUB_AGENT_COUNSELLOR";
+  const canAllocate = role === "ADMIN" || role === "MANAGER";
+
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [loading, setLoading] = useState(false);
   const [students, setStudents] = useState<StudentRow[]>([]);
@@ -171,6 +174,13 @@ export default function StudentsClient({
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [exporting, setExporting] = useState(false);
+
+  // Allocation modal state
+  const [allocateStudentId, setAllocateStudentId] = useState<string | null>(null);
+  const [allocateStudentName, setAllocateStudentName] = useState("");
+  const [allocateCounsellorId, setAllocateCounsellorId] = useState("");
+  const [allocateSaving, setAllocateSaving] = useState(false);
+  const [allocateError, setAllocateError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -204,6 +214,40 @@ export default function StudentsClient({
     const params = buildParams(filters, { export: "true" });
     window.location.href = `/api/admin/students?${params.toString()}`;
     setTimeout(() => setExporting(false), 1000);
+  }
+
+  function openAllocateModal(student: StudentRow) {
+    setAllocateStudentId(student.id);
+    setAllocateStudentName(`${student.firstName} ${student.lastName}`);
+    setAllocateCounsellorId(student.assignedCounsellor?.id ?? "");
+    setAllocateError(null);
+  }
+
+  function closeAllocateModal() {
+    setAllocateStudentId(null);
+    setAllocateCounsellorId("");
+    setAllocateError(null);
+  }
+
+  async function submitAllocate() {
+    if (!allocateStudentId) return;
+    setAllocateSaving(true);
+    setAllocateError(null);
+    try {
+      const res = await fetch(`/api/students/${allocateStudentId}/assign-counsellor`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ counsellorId: allocateCounsellorId || null }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to assign counsellor");
+      closeAllocateModal();
+      fetchData();
+    } catch (err) {
+      setAllocateError(err instanceof Error ? err.message : "Failed to assign counsellor");
+    } finally {
+      setAllocateSaving(false);
+    }
   }
 
   return (
@@ -261,14 +305,13 @@ export default function StudentsClient({
             className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
           >
             <option value="">All Nationalities</option>
-            {/* simple hardcoded list? or maybe dynamic later */}
             <option>USA</option>
             <option>UK</option>
             <option>Canada</option>
             <option>Australia</option>
           </select>
 
-          {/* Counsellor filter */}
+          {/* Counsellor filter — Admin/Manager see all options incl. Unallocated */}
           {!isCounsellor && (
             <select
               value={filters.counsellorId}
@@ -276,6 +319,9 @@ export default function StudentsClient({
               className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
             >
               <option value="">All Counsellors</option>
+              {canAllocate && (
+                <option value="UNALLOCATED">⚠ Unallocated</option>
+              )}
               {counsellors.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -331,6 +377,14 @@ export default function StudentsClient({
             Clear Filters
           </button>
         </div>
+
+        {/* Unallocated quick-filter banner */}
+        {canAllocate && filters.counsellorId === "UNALLOCATED" && (
+          <div className="mt-3 flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
+            <UserCheck className="w-4 h-4 text-amber-600 shrink-0" />
+            Showing students without an assigned counsellor. Click <strong>Assign</strong> in the Counsellor column to allocate.
+          </div>
+        )}
       </div>
 
       {/* Table */}
@@ -396,7 +450,26 @@ export default function StudentsClient({
                   <td className="px-4 py-3">{s.phone || ""}</td>
                   <td className="px-4 py-3">{s.nationality}</td>
                   <td className="px-4 py-3">
-                    {s.assignedCounsellor?.name || "Unassigned"}
+                    {canAllocate ? (
+                      <div className="flex items-center gap-2">
+                        {s.assignedCounsellor ? (
+                          <span className="text-slate-700">{s.assignedCounsellor.name}</span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                            ⚠ Unassigned
+                          </span>
+                        )}
+                        <button
+                          onClick={() => openAllocateModal(s)}
+                          className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                        >
+                          <UserCheck className="w-3 h-3" />
+                          {s.assignedCounsellor ? "Change" : "Assign"}
+                        </button>
+                      </div>
+                    ) : (
+                      <span>{s.assignedCounsellor?.name || "Unassigned"}</span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     {s.subAgent && (
@@ -457,6 +530,74 @@ export default function StudentsClient({
           onPageChange={(p) => updateFilter("page", String(p))}
         />
       </div>
+
+      {/* Assign Counsellor Modal */}
+      {allocateStudentId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl mx-4">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-bold text-[#1B2A4A]">Assign Counsellor</h2>
+                <p className="text-sm text-slate-500 mt-0.5">{allocateStudentName}</p>
+              </div>
+              <button
+                onClick={closeAllocateModal}
+                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  Select Counsellor
+                </label>
+                <select
+                  value={allocateCounsellorId}
+                  onChange={(e) => setAllocateCounsellorId(e.target.value)}
+                  className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                >
+                  <option value="">— Remove assignment —</option>
+                  {counsellors.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {allocateError && (
+                <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
+                  {allocateError}
+                </p>
+              )}
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={closeAllocateModal}
+                className="flex-1 h-10 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitAllocate}
+                disabled={allocateSaving}
+                className="flex-1 h-10 rounded-lg text-sm font-semibold text-white disabled:opacity-60 flex items-center justify-center gap-2"
+                style={{ background: "linear-gradient(135deg, #1B2A4A, #2f4f86)" }}
+              >
+                {allocateSaving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <UserCheck className="w-4 h-4" />
+                )}
+                {allocateSaving ? "Saving…" : "Confirm Assignment"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

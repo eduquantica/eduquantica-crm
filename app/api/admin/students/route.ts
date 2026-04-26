@@ -19,11 +19,12 @@ function staffGuard(session: Session | null) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildWhere(isCounsellor: boolean, userId: string, p: URLSearchParams): any {
+function buildWhere(role: string, userId: string, p: URLSearchParams): any {
   // using unknown[] here to avoid lint warning while still later casting as needed
   const and: unknown[] = [];
 
-  if (isCounsellor) and.push({ assignedCounsellorId: userId });
+  if (role === "COUNSELLOR") and.push({ assignedCounsellorId: userId });
+  if (role === "SUB_AGENT_COUNSELLOR") and.push({ subAgentStaffId: userId });
 
   const search = p.get("search")?.trim();
   if (search) {
@@ -43,7 +44,12 @@ function buildWhere(isCounsellor: boolean, userId: string, p: URLSearchParams): 
   if (nationality) and.push({ nationality });
 
   const counsellorId = p.get("counsellorId");
-  if (counsellorId && !isCounsellor) and.push({ assignedCounsellorId: counsellorId });
+  const isRestrictedRole = role === "COUNSELLOR" || role === "SUB_AGENT_COUNSELLOR";
+  if (counsellorId === "UNALLOCATED" && !isRestrictedRole) {
+    and.push({ assignedCounsellorId: null });
+  } else if (counsellorId && !isRestrictedRole) {
+    and.push({ assignedCounsellorId: counsellorId });
+  }
 
   const subAgentId = p.get("subAgentId");
   if (subAgentId) and.push({ subAgentId });
@@ -175,9 +181,9 @@ export async function GET(req: NextRequest) {
   const p = req.nextUrl.searchParams;
 
   try {
-    const isCounsellor = session!.user.roleName === "COUNSELLOR";
+    const role = session!.user.roleName;
     const userId = session!.user.id;
-    const where = buildWhere(isCounsellor, userId, p);
+    const where = buildWhere(role, userId, p);
 
     // CSV export
     if (p.get("export") === "true") {
