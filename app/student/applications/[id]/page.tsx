@@ -19,7 +19,7 @@ export default async function StudentApplicationPage({ params }: PageProps) {
   const showFeeBanner = feeSummary?.feeRequired && feeSummary.displayStatus === "UNPAID";
 
   return (
-    <div className="w-full px-5 py-6 sm:px-7 space-y-4 max-w-[1400px]">
+    <div className="w-full px-5 py-6 sm:px-7 space-y-4">
       {showFeeBanner && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-5 py-3">
           <div className="flex items-center gap-2 text-sm text-amber-900">

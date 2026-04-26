@@ -50,7 +50,7 @@ export default function StudentScholarshipsTrackerPage() {
   }, []);
 
   return (
-    <main className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 sm:px-6">
+    <main className="w-full space-y-6 px-5 py-6 sm:px-7">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">My Scholarships</h1>

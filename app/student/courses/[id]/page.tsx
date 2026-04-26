@@ -259,7 +259,7 @@ export default function StudentCourseDetailPage() {
   if (error || !payload) return <div className="p-6 text-sm text-red-600 dark:text-rose-300">{error || "Failed to load course details"}</div>;
 
   return (
-    <main className="student-dashboard-bg mx-auto w-full max-w-7xl space-y-6 rounded-3xl px-4 py-6 pb-24 sm:px-6 lg:pb-6">
+    <main className="w-full space-y-6 px-5 py-6 sm:px-7 pb-24 lg:pb-6">
       <CourseViewTracker courseId={courseId} />
 
       <div className="flex flex-wrap items-start justify-between gap-4">

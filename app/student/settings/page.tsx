@@ -234,7 +234,7 @@ export default function StudentSettingsPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-4">
+    <div className="w-full space-y-4 px-5 py-6 sm:px-7">
       <section className="rounded-2xl border border-slate-200 bg-white p-6">
         <h2 className="text-xl font-semibold text-slate-900">Settings</h2>
         <p className="mt-1 text-sm text-slate-600">Manage your account and communication preferences.</p>

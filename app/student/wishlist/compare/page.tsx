@@ -224,7 +224,7 @@ export default function WishlistComparePage() {
 
 	if (loading) {
 		return (
-			<main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">
+			<main className="w-full px-5 py-6 sm:px-7">
 				<div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">Loading comparison...</div>
 			</main>
 		);
@@ -232,7 +232,7 @@ export default function WishlistComparePage() {
 
 	if (selectedIds.length < 2 || courses.length < 2) {
 		return (
-			<main className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6">
+			<main className="w-full px-5 py-6 sm:px-7">
 				<section className="rounded-2xl border border-slate-200 bg-white p-8">
 					<h1 className="text-xl font-semibold text-slate-900">Select at least 2 courses to compare</h1>
 					<p className="mt-2 text-sm text-slate-600">Go back to wishlist and tick two or more saved courses.</p>
@@ -245,7 +245,7 @@ export default function WishlistComparePage() {
 	}
 
 	return (
-		<main className="mx-auto w-full max-w-[1400px] space-y-4 px-4 py-6 sm:px-6">
+		<main className="w-full space-y-4 px-5 py-6 sm:px-7">
 			<header className="flex flex-wrap items-center justify-between gap-3">
 				<div>
 					<h1 className="text-2xl font-bold text-slate-900">Course Comparison</h1>

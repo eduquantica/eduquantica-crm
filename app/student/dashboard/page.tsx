@@ -191,7 +191,7 @@ export default async function StudentDashboardPage() {
     });
 
     return (
-      <div className="w-full px-5 py-6 sm:px-7 space-y-6 max-w-[1400px]">
+      <div className="w-full px-5 py-6 sm:px-7 space-y-6">
 
         {/* ── Hero banner ── */}
         <section

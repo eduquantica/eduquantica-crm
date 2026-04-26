@@ -433,8 +433,8 @@ export default function StudentServicesClient({
   ].filter((card) => (card.key === "pickup" ? isVisaApproved : true));
 
   return (
-    <div className="space-y-6 overflow-x-hidden pb-24 md:pb-0">
-      <h1 className="text-2xl font-semibold">Student Services</h1>
+    <div className="w-full px-5 py-6 sm:px-7 space-y-6 overflow-x-hidden pb-24 md:pb-0">
+      <h1 className="text-2xl font-black text-[#1B2A4A]">🎯 Student Services</h1>
 
       {error ? <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
 

@@ -343,19 +343,26 @@ export default function StudentCoursesEligibilityPage() {
   );
 
   return (
-    <main className="w-full max-w-[1400px] space-y-6 px-5 py-6 sm:px-7">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Find Your Best-Fit Courses</h1>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Compare programs by eligibility, tuition, and scholarship opportunities.</p>
+    <main className="w-full space-y-6 px-5 py-6 sm:px-7">
+      {/* Header banner */}
+      <section
+        className="relative overflow-hidden rounded-2xl px-6 py-5 md:px-8"
+        style={{ background: "linear-gradient(135deg, #1B2A4A 0%, #162643 55%, #0d1f3c 100%)" }}
+      >
+        <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full opacity-20" style={{ background: "radial-gradient(circle, #F5A623, transparent)" }} />
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-black text-white">🔍 Find Your Best-Fit Courses</h1>
+            <p className="text-sm text-white/55 mt-0.5">Compare programs by eligibility, tuition, and scholarship opportunities.</p>
+          </div>
+          <button
+            onClick={() => setMobileFiltersOpen(true)}
+            className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-sm font-semibold text-white lg:hidden"
+          >
+            <SlidersHorizontal className="h-4 w-4" /> Filters
+          </button>
         </div>
-        <button
-          onClick={() => setMobileFiltersOpen(true)}
-          className="inline-flex items-center gap-2 rounded-xl border border-white/50 bg-white/70 px-3 py-2 text-sm font-medium text-slate-700 backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/60 dark:text-slate-200 lg:hidden"
-        >
-          <SlidersHorizontal className="h-4 w-4" /> Filters
-        </button>
-      </div>
+      </section>
 
       {!academicComplete && (
         <section className="rounded-xl border border-amber-200/80 bg-amber-50/90 p-4 text-sm text-amber-900 dark:border-amber-400/30 dark:bg-amber-950/25 dark:text-amber-200">

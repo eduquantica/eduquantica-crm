@@ -133,17 +133,17 @@ export default function StudentApplicationFeePage() {
   }
 
   if (loading) {
-    return <main className="mx-auto w-full max-w-5xl p-6 text-sm text-slate-600">Loading application fee details...</main>;
+    return <main className="w-full px-5 py-6 sm:px-7 text-sm text-slate-600">Loading application fee details...</main>;
   }
 
   if (!payload) {
-    return <main className="mx-auto w-full max-w-5xl p-6 text-sm text-rose-600">Failed to load application fee details.</main>;
+    return <main className="w-full px-5 py-6 sm:px-7 text-sm text-rose-600">Failed to load application fee details.</main>;
   }
 
   const fromCreate = searchParams.get("fromCreate") === "1";
 
   return (
-    <main className="mx-auto w-full max-w-5xl space-y-4 p-6">
+    <main className="w-full space-y-4 px-5 py-6 sm:px-7">
       {fromCreate && payload.fee.feeRequired && (
         <section className="rounded-xl border border-blue-200 bg-blue-50 p-4">
           <p className="text-sm text-blue-900">

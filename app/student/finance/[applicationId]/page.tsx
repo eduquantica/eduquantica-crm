@@ -28,7 +28,7 @@ export default async function StudentFinanceDetailPage({ params }: { params: { a
   }
 
   return (
-    <main className="mx-auto w-full max-w-6xl space-y-4 px-4 py-6 sm:px-6">
+    <main className="w-full space-y-4 px-5 py-6 sm:px-7">
       <div className="rounded-xl border border-slate-200 bg-white p-5">
         <div className="flex items-center justify-between gap-3">
           <div>

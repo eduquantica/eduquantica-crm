@@ -327,18 +327,22 @@ export default function StudentDocumentsPage() {
   }
 
   return (
-    <main className="w-full max-w-[1400px] space-y-6 px-5 py-6 sm:px-7">
-      <section className="glass-card p-6">
+    <main className="w-full space-y-6 px-5 py-6 sm:px-7">
+      <section
+        className="relative overflow-hidden rounded-2xl px-6 py-5 md:px-8"
+        style={{ background: "linear-gradient(135deg, #1B2A4A 0%, #162643 55%, #0d1f3c 100%)" }}
+      >
+        <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full opacity-20" style={{ background: "radial-gradient(circle, #F5A623, transparent)" }} />
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-black text-[#1B2A4A]">📁 My Documents</h1>
-            <p className="mt-1 text-sm text-slate-500">Smart checklist built from your profile, test scores, uploads, and staff requests.</p>
+            <h1 className="text-xl font-black text-white">📁 My Documents</h1>
+            <p className="mt-1 text-sm text-white/55">Smart checklist from your profile, test scores, uploads, and staff requests.</p>
           </div>
 
           <div className="flex items-center gap-4">
             <div className="relative h-24 w-24">
               <svg viewBox="0 0 100 100" className="h-24 w-24 -rotate-90">
-                <circle cx="50" cy="50" r="42" className="fill-none stroke-slate-200" strokeWidth="10" />
+                <circle cx="50" cy="50" r="42" className="fill-none" stroke="rgba(255,255,255,0.15)" strokeWidth="10" />
                 <circle
                   cx="50"
                   cy="50"
@@ -350,38 +354,28 @@ export default function StudentDocumentsPage() {
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                <span className="text-lg font-semibold text-slate-900">{verifiedCount}/{totalRequired}</span>
-                <span className="text-xs text-slate-500">verified</span>
+                <span className="text-lg font-black text-white">{verifiedCount}/{totalRequired}</span>
+                <span className="text-[10px] text-white/50 font-semibold uppercase">verified</span>
               </div>
             </div>
-            <div className="text-sm text-slate-600">
-              <p>
-                Verified: <span className="font-semibold text-slate-900">{verifiedCount}</span>
-              </p>
-              <p>
-                Total Required: <span className="font-semibold text-slate-900">{totalRequired}</span>
-              </p>
-              <p>
-                Uploaded: <span className="font-semibold text-blue-700">{pendingReviewCount}</span>
-              </p>
-              <p>
-                Needs Revision: <span className="font-semibold text-amber-700">{needsRevisionCount}</span>
-              </p>
-              <p>
-                To Do: <span className="font-semibold text-red-700">{stillRequiredCount}</span>
-              </p>
+            <div className="text-sm text-white/70 space-y-0.5">
+              <p>Verified: <span className="font-bold text-white">{verifiedCount}</span></p>
+              <p>Total Required: <span className="font-bold text-white">{totalRequired}</span></p>
+              <p>Uploaded: <span className="font-bold text-blue-300">{pendingReviewCount}</span></p>
+              <p>Needs Revision: <span className="font-bold text-amber-300">{needsRevisionCount}</span></p>
+              <p>To Do: <span className="font-bold text-red-300">{stillRequiredCount}</span></p>
             </div>
           </div>
         </div>
 
         {readyBanner === "AWAITING_VERIFICATION" && (
-          <div className="mt-4 rounded-lg border border-blue-200/80 bg-blue-50/90 dark:border-blue-400/30 dark:bg-blue-900/30 p-3 text-sm text-blue-700 dark:text-blue-300">
-            All required files are uploaded and waiting for staff verification.
+          <div className="mt-4 rounded-xl border border-white/20 bg-white/10 p-3 text-sm font-medium text-white">
+            ✅ All required files uploaded — waiting for staff verification.
           </div>
         )}
         {readyBanner === "READY_TO_APPLY" && (
-          <div className="mt-4 rounded-lg border border-emerald-200/80 bg-emerald-50/90 dark:border-emerald-400/30 dark:bg-emerald-900/30 p-3 text-sm text-emerald-700 dark:text-emerald-300">
-            File ready to apply. All checklist items are verified.
+          <div className="mt-4 rounded-xl border border-emerald-400/40 bg-emerald-400/15 p-3 text-sm font-medium text-emerald-200">
+            🎉 All checklist items verified — you&apos;re ready to apply!
           </div>
         )}
 

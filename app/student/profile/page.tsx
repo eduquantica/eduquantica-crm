@@ -835,43 +835,54 @@ export default function StudentProfilePage() {
   }, [fieldSearch]);
 
   if (loading) {
-    return <div className="glass-card mx-auto w-full max-w-7xl rounded-2xl p-6 text-sm text-slate-600 dark:text-slate-300">Loading profile...</div>;
+    return <div className="w-full px-5 py-6 sm:px-7"><div className="glass-card rounded-2xl p-6 text-sm text-slate-600">Loading profile...</div></div>;
   }
 
   return (
-    <div className="student-dashboard-bg mx-auto w-full max-w-7xl space-y-4 rounded-3xl p-2">
-      <section className="glass-card rounded-2xl p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="w-full px-5 py-6 sm:px-7 space-y-4">
+      {/* Hero header */}
+      <section
+        className="relative overflow-hidden rounded-2xl px-6 py-5 md:px-8"
+        style={{ background: "linear-gradient(135deg, #1B2A4A 0%, #162643 55%, #0d1f3c 100%)" }}
+      >
+        <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full opacity-20" style={{ background: "radial-gradient(circle, #F5A623, transparent)" }} />
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">My Profile</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400">Manage your details, then generate or download your CV anytime.</p>
-            <div className="mt-3 w-full max-w-sm">
-              <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            <h1 className="text-xl font-black text-white">👤 My Profile</h1>
+            <p className="text-sm text-white/55 mt-0.5">Manage your details, then generate or download your CV anytime.</p>
+            <div className="mt-3 w-full max-w-xs">
+              <div className="flex items-center justify-between text-[11px] font-semibold text-white/45 mb-1">
                 <span>Profile completion</span>
                 <span>{profileCompletion}%</span>
               </div>
-              <div className="mt-1 h-2 overflow-hidden rounded-full bg-white/60 dark:bg-slate-800/70">
-                <div className="h-full rounded-full bg-gradient-to-r from-[#1E3A5F] to-[#3b78ad] transition-all dark:from-[#F5A623] dark:to-[#d48b0b]" style={{ width: `${profileCompletion}%` }} />
+              <div className="h-2 overflow-hidden rounded-full bg-white/15">
+                <div className="h-full rounded-full transition-all duration-700" style={{ width: `${profileCompletion}%`, background: "linear-gradient(90deg, #F5A623, #e8930f)" }} />
               </div>
             </div>
           </div>
           <Link
             href="/student/cv-builder"
-            className="inline-flex items-center rounded-xl bg-gradient-to-r from-[#F5A623] to-[#de920a] px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:-translate-y-0.5 hover:opacity-95 dark:text-slate-900"
+            className="inline-flex items-center rounded-xl px-4 py-2 text-sm font-black text-[#1B2A4A] shadow-md transition hover:-translate-y-0.5 hover:opacity-90"
+            style={{ background: "linear-gradient(135deg, #F5A623, #e8930f)" }}
           >
-            Download CV
+            📄 Download CV
           </Link>
         </div>
       </section>
 
-      <section className="glass-card rounded-2xl p-4">
-        <div className="flex flex-wrap gap-2">
+      {/* Tabs */}
+      <section className="glass-card rounded-2xl p-3">
+        <div className="flex flex-wrap gap-1.5">
           {TABS.map((tab) => (
             <button
               key={tab.key}
               type="button"
               onClick={() => setTabWithHash(tab.key)}
-              className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${activeTab === tab.key ? "bg-gradient-to-r from-[#1E3A5F] to-[#2f6797] text-white shadow-sm dark:from-[#F5A623] dark:to-[#d48b0b] dark:text-slate-900" : "bg-white/60 text-slate-700 hover:bg-white dark:bg-slate-900/60 dark:text-slate-300 dark:hover:bg-slate-900"}`}
+              className="rounded-xl px-3.5 py-2 text-sm font-bold transition-all duration-200"
+              style={activeTab === tab.key
+                ? { background: "linear-gradient(135deg, #1B2A4A, #2f4f86)", color: "#fff", boxShadow: "0 4px 12px rgba(27,42,74,0.2)" }
+                : { background: "rgba(27,42,74,0.05)", color: "#5f6f92" }
+              }
             >
               {tab.label}
             </button>

@@ -111,7 +111,7 @@ export default async function StudentFinancePage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6">
+    <main className="w-full space-y-6 px-5 py-6 sm:px-7">
       <section className="rounded-2xl border border-slate-200 bg-white p-6">
         <h1 className="text-2xl font-bold text-slate-900">Finance</h1>
         <p className="mt-1 text-sm text-slate-600">Manage finance requirements for your applications.</p>

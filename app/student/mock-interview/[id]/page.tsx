@@ -23,7 +23,7 @@ export default async function StudentMockInterviewRunPage({ params }: { params: 
   if (interview.status === "COMPLETED") redirect(`/student/mock-interview/${interview.id}/report`);
 
   return (
-    <main className="mx-auto w-full max-w-4xl space-y-4">
+    <main className="w-full space-y-4 px-5 py-6 sm:px-7">
       <MockInterviewSession interviewId={interview.id} />
     </main>
   );

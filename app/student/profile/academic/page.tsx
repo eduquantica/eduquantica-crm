@@ -638,7 +638,7 @@ export default function StudentAcademicProfilePage() {
   }
 
   return (
-    <main className="student-dashboard-bg mx-auto w-full max-w-6xl space-y-6 rounded-3xl px-4 py-6 sm:px-6">
+    <main className="w-full space-y-6 px-5 py-6 sm:px-7">
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Academic Profile</h1>

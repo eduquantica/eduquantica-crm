@@ -500,11 +500,11 @@ export default function ApplicationTrackerClient({ applicationId }: { applicatio
   }
 
   if (loading) {
-    return <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6"><div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">Loading application...</div></main>;
+    return <main className="w-full px-5 py-6 sm:px-7"><div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">Loading application...</div></main>;
   }
 
   if (error || !data) {
-    return <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6"><div className="rounded-xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-700">{error || "Application not found"}</div></main>;
+    return <main className="w-full px-5 py-6 sm:px-7"><div className="rounded-xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-700">{error || "Application not found"}</div></main>;
   }
 
   const statusMeta = STATUS_UI[data.status];
@@ -515,7 +515,7 @@ export default function ApplicationTrackerClient({ applicationId }: { applicatio
   const strokeOffset = circumference * (1 - pct);
 
   return (
-    <main className="mx-auto w-full max-w-7xl space-y-5 px-4 py-6 sm:px-6">
+    <main className="w-full space-y-5 px-5 py-6 sm:px-7">
       <Link href="/student/applications" className="text-sm font-medium text-blue-700 hover:underline">← Back to Applications</Link>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5">
