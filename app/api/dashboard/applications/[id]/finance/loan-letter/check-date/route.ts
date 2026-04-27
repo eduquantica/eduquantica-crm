@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth/next";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 
+export const maxDuration = 60;
+
 const payloadSchema = z.object({
   fileUrl: z.string().url(),
 });

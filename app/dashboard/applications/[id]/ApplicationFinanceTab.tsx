@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, XCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -937,15 +938,13 @@ export default function ApplicationFinanceTab({ applicationId, userRole, student
       const extractedCurrency = json.data?.ocr?.currency || "GBP";
       if (typeof extractedAmount === "number" && Number.isFinite(extractedAmount)) {
         const symbol = extractedCurrency === "GBP" ? "£" : `${extractedCurrency} `;
-        toast.success(`Deposit amount extracted: ${symbol}${extractedAmount.toLocaleString()}`);
-      } else if (json.data?.message) {
-        toast.error(json.data.message);
+        toast.success(`Deposit receipt uploaded. Amount extracted: ${symbol}${extractedAmount.toLocaleString()}`);
       } else {
-        toast.error("Could not extract automatically. Please enter figures manually.");
+        toast.success("Deposit receipt uploaded successfully. Amount could not be extracted automatically — please enter it manually below.");
       }
 
       if (uploadJson.message) {
-        toast.success(uploadJson.message);
+        toast.info(uploadJson.message);
       }
       await loadData();
     } catch (error) {
@@ -999,13 +998,16 @@ export default function ApplicationFinanceTab({ applicationId, userRole, student
 
       {!data.hasOfferLetter && (
         <section className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-sm text-amber-800">
-          <p>Upload your offer letter to get started. Your financial summary will appear here.</p>
-          <a
-            href="#documents"
-            className="mt-4 inline-flex rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700"
-          >
-            Upload Offer Letter
-          </a>
+          <p className="font-medium">Upload your offer letter to get started.</p>
+          <p className="mt-1 text-amber-700">Go to <strong>My Application → Documents</strong> tab and upload your offer letter there. Your financial summary will update automatically once uploaded.</p>
+          {userRole === "STUDENT" && (
+            <Link
+              href="/student/documents"
+              className="mt-3 inline-flex rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700"
+            >
+              Go to Documents →
+            </Link>
+          )}
         </section>
       )}
 

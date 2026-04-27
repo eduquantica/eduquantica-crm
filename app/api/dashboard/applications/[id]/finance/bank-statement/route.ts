@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth/next";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+
+export const maxDuration = 60;
 import { readLatestAction } from "@/lib/application-finance";
 import { scanFinancialDoc } from "@/lib/mindee";
 import { parseDurationMonths, resolveFinancialRequirement, resolveVisaLivingExpenseMonths } from "@/lib/financial-requirements";
