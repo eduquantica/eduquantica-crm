@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, XCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -14,6 +13,7 @@ type Props = {
   userRole: string;
   studentNationality?: string | null;
   applicationStatus?: string | null;
+  onSwitchTab?: (tab: string) => void;
 };
 
 type FinancePayload = {
@@ -279,7 +279,7 @@ const DEFAULT_ACCOUNT: FundingAccount = {
   accessibleImmediately: true,
 };
 
-export default function ApplicationFinanceTab({ applicationId, userRole, studentNationality, applicationStatus }: Props) {
+export default function ApplicationFinanceTab({ applicationId, userRole, studentNationality, applicationStatus, onSwitchTab }: Props) {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [approving, setApproving] = useState(false);
@@ -998,15 +998,15 @@ export default function ApplicationFinanceTab({ applicationId, userRole, student
 
       {!data.hasOfferLetter && (
         <section className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-sm text-amber-800">
-          <p className="font-medium">Upload your offer letter to get started.</p>
-          <p className="mt-1 text-amber-700">Go to <strong>My Application → Documents</strong> tab and upload your offer letter there. Your financial summary will update automatically once uploaded.</p>
-          {userRole === "STUDENT" && (
-            <Link
-              href="/student/documents"
-              className="mt-3 inline-flex rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700"
+          <p>Upload your offer letter to get started. Your financial summary will appear here.</p>
+          {onSwitchTab && (
+            <button
+              type="button"
+              onClick={() => onSwitchTab("documents")}
+              className="mt-4 inline-flex rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700"
             >
-              Go to Documents →
-            </Link>
+              Upload Offer Letter
+            </button>
           )}
         </section>
       )}

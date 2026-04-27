@@ -1248,6 +1248,7 @@ export default function ApplicationDetailClient({
               userRole={userRole}
               studentNationality={application.student.nationality || null}
               applicationStatus={application.status}
+              onSwitchTab={(tab) => setActiveTab(tab)}
             />
           )}
 

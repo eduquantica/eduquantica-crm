@@ -999,6 +999,7 @@ export default function ApplicationTrackerClient({ applicationId }: { applicatio
                 userRole="STUDENT"
                 studentNationality={data.student.nationality}
                 applicationStatus={data.status}
+                onSwitchTab={(tab) => setActiveTab(tab as typeof activeTab)}
               />
             </section>
           )}
