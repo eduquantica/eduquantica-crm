@@ -386,11 +386,9 @@ export default function ApplicationFinanceTab({ applicationId, userRole, student
 
   const displayDepositPaid = useMemo(() => {
     if (!data) return 0;
-    const extractedAmount = data.depositReceipt.upload?.ocr?.amountPaid;
-    if (extractedAmount != null) return data.summary.depositPaid;
     const manual = Number(manualDepositAmount || 0);
-    if (!Number.isFinite(manual) || manual <= 0) return data.summary.depositPaid;
-    return Math.max(data.summary.depositPaid, manual);
+    if (Number.isFinite(manual) && manual > 0) return Math.max(data.summary.depositPaid, manual);
+    return data.summary.depositPaid;
   }, [data, manualDepositAmount]);
 
   const computedRemainingTuition = useMemo(() => {
@@ -982,6 +980,125 @@ export default function ApplicationFinanceTab({ applicationId, userRole, student
     return <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-700">Unable to load finance details.</div>;
   }
 
+  const isUnconditional = applicationStatus === "UNCONDITIONAL_OFFER"
+    || applicationStatus === "FINANCE_IN_PROGRESS"
+    || applicationStatus === "DEPOSIT_PAID"
+    || applicationStatus === "FINANCE_COMPLETE"
+    || applicationStatus === "CAS_ISSUED"
+    || applicationStatus === "VISA_APPLIED"
+    || applicationStatus === "ENROLLED";
+
+  const pendingUpload = data.depositReceipt.upload;
+  const pendingOcr = pendingUpload?.ocr;
+  const hasPendingApproval = Boolean(pendingUpload && !data.depositReceipt.approval && canApproveByRole && data.canApproveDeposit);
+  const approvedList = data.depositReceipt.approvals || [];
+
+  function renderDepositSection(key: string) {
+    return (
+      <section
+        key={key}
+        className="rounded-lg p-6 space-y-5"
+        style={
+          isUnconditional
+            ? { background: "linear-gradient(135deg, #1B2A4A 0%, #2f4f86 40%, #F5A623 100%)", border: "none" }
+            : { border: "1px solid #e2e8f0", background: "#fff" }
+        }
+      >
+        {isUnconditional && (
+          <span className="inline-block rounded-full bg-white/20 px-3 py-1 text-xs font-bold text-white tracking-wide">
+            🎉 Unconditional Offer — Deposit Receipt
+          </span>
+        )}
+        <h3 className={`text-lg font-semibold ${isUnconditional ? "text-white" : "text-gray-900"}`}>
+          Deposit Receipt Upload
+        </h3>
+
+        <div className={isUnconditional ? "rounded-xl bg-white/10 p-3" : ""}>
+          <p className={`mb-2 text-xs font-medium ${isUnconditional ? "text-white/80" : "text-slate-600"}`}>
+            Upload your deposit receipt — OCR will extract the amount automatically.
+          </p>
+          <ChecklistUploadZone
+            onFileSelected={uploadDepositReceipt}
+            uploading={uploading}
+            studentId={data?.studentId}
+            checklistItemName="Deposit Receipt"
+            documentField={`finance:deposit-receipt:${applicationId}`}
+            documentType="FINANCIAL_PROOF"
+          />
+        </div>
+
+        {pendingUpload && (
+          <div className={`rounded-lg p-4 text-sm ${isUnconditional ? "bg-white/15 text-white" : "border border-slate-200 bg-slate-50 text-slate-700"}`}>
+            <p className={`font-semibold mb-2 ${isUnconditional ? "text-white" : "text-slate-900"}`}>
+              OCR Extracted Details — Pending Approval
+            </p>
+            {pendingOcr ? (
+              <div className="grid gap-1 sm:grid-cols-2">
+                <p><span className="font-medium">Amount Paid:</span> {pendingOcr.amountPaid != null ? `${pendingOcr.amountPaid.toLocaleString()} ${pendingOcr.currency || ""}` : "—"}</p>
+                <p><span className="font-medium">Payment Date:</span> {pendingOcr.paymentDate || "—"}</p>
+                <p><span className="font-medium">Reference:</span> {pendingOcr.paymentReference || "—"}</p>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500">OCR results not yet available.</p>
+            )}
+
+            {(pendingOcr?.amountPaid == null || canApproveByRole) && (
+              <div className="mt-3">
+                <label className={`mb-1 block text-xs font-medium ${isUnconditional ? "text-white/80" : "text-slate-600"}`}>
+                  {pendingOcr?.amountPaid != null
+                    ? "Override extracted amount (staff only):"
+                    : "OCR could not extract amount — enter manually:"}
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  value={manualDepositAmount}
+                  onChange={(e) => setManualDepositAmount(e.target.value)}
+                  placeholder="e.g. 2000"
+                  className="w-full max-w-xs rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900"
+                />
+              </div>
+            )}
+
+            {hasPendingApproval && (
+              <button
+                type="button"
+                onClick={() => void approveDeposit()}
+                disabled={approving}
+                className="mt-3 inline-flex rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+              >
+                {approving ? "Approving…" : "✓ Approve Deposit"}
+              </button>
+            )}
+          </div>
+        )}
+
+        {approvedList.length > 0 && (
+          <div className="space-y-2">
+            <p className={`text-xs font-semibold uppercase tracking-wide ${isUnconditional ? "text-white/70" : "text-slate-500"}`}>
+              Approved Deposits
+            </p>
+            {approvedList.map((item, idx) => (
+              <div
+                key={`${item.documentId}-${idx}`}
+                className={`rounded-lg px-3 py-2 text-sm ${isUnconditional ? "bg-white/15 text-white" : "border border-slate-200 text-slate-700"}`}
+              >
+                <span className="font-medium">Deposit {idx + 1}: </span>
+                {(item.amountPaid || 0).toLocaleString()} {effectiveCurrency}
+                <span className={`ml-2 text-xs ${isUnconditional ? "text-white/60" : "text-slate-500"}`}>
+                  {item.approvedAt ? new Date(item.approvedAt).toLocaleDateString("en-GB") : ""}
+                </span>
+              </div>
+            ))}
+            <div className={`rounded-lg px-3 py-2 text-sm font-semibold ${isUnconditional ? "bg-white/20 text-white" : "border border-blue-200 bg-blue-50 text-blue-800"}`}>
+              Total deducted from required funds: {(data?.summary.depositPaid ?? 0).toLocaleString()} {effectiveCurrency}
+            </div>
+          </div>
+        )}
+      </section>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {data.offerLetterPrefillStatus === "SUCCESS" && (
@@ -1011,6 +1128,7 @@ export default function ApplicationFinanceTab({ applicationId, userRole, student
         </section>
       )}
 
+      {renderDepositSection("deposit-top")}
 
       <section id="funding-sources" className="rounded-lg border border-gray-200 bg-white p-6">
         <h3 className="text-lg font-semibold text-gray-900">Financial Summary</h3>
@@ -1806,118 +1924,6 @@ export default function ApplicationFinanceTab({ applicationId, userRole, student
         </button>
       </section>
 
-      {(() => {
-        const isUnconditional = applicationStatus === "UNCONDITIONAL_OFFER"
-          || applicationStatus === "FINANCE_IN_PROGRESS"
-          || applicationStatus === "DEPOSIT_PAID"
-          || applicationStatus === "FINANCE_COMPLETE"
-          || applicationStatus === "CAS_ISSUED"
-          || applicationStatus === "VISA_APPLIED"
-          || applicationStatus === "ENROLLED";
-
-        const pendingUpload = data.depositReceipt.upload;
-        const pendingOcr = pendingUpload?.ocr;
-        const hasPendingApproval = Boolean(pendingUpload && !data.depositReceipt.approval && canApproveByRole && data.canApproveDeposit);
-        const approvedList = data.depositReceipt.approvals || [];
-
-        return (
-          <section
-            className="rounded-lg p-6 space-y-5"
-            style={
-              isUnconditional
-                ? { background: "linear-gradient(135deg, #1B2A4A 0%, #2f4f86 40%, #F5A623 100%)", border: "none" }
-                : { border: "1px solid #e2e8f0", background: "#fff" }
-            }
-          >
-            {isUnconditional && (
-              <span className="inline-block rounded-full bg-white/20 px-3 py-1 text-xs font-bold text-white tracking-wide">
-                🎉 Unconditional Offer — Deposit Receipt
-              </span>
-            )}
-            <h3 className={`text-lg font-semibold ${isUnconditional ? "text-white" : "text-gray-900"}`}>
-              Deposit Receipt Upload
-            </h3>
-
-            {/* Always-visible upload zone */}
-            <div className={isUnconditional ? "rounded-xl bg-white/10 p-3" : ""}>
-              <p className={`mb-2 text-xs font-medium ${isUnconditional ? "text-white/80" : "text-slate-600"}`}>
-                Upload your deposit receipt — OCR will extract the amount automatically.
-              </p>
-              <ChecklistUploadZone
-                onFileSelected={uploadDepositReceipt}
-                uploading={uploading}
-                studentId={data.studentId}
-                checklistItemName="Deposit Receipt"
-                documentField={`finance:deposit-receipt:${applicationId}`}
-                documentType="FINANCIAL_PROOF"
-              />
-            </div>
-
-            {/* OCR extracted details */}
-            {pendingOcr && (
-              <div className={`rounded-lg p-4 text-sm ${isUnconditional ? "bg-white/15 text-white" : "border border-slate-200 bg-slate-50 text-slate-700"}`}>
-                <p className={`font-semibold mb-2 ${isUnconditional ? "text-white" : "text-slate-900"}`}>
-                  OCR Extracted Details — Pending Approval
-                </p>
-                <div className="grid gap-1 sm:grid-cols-2">
-                  <p><span className="font-medium">Amount Paid:</span> {pendingOcr.amountPaid != null ? `${pendingOcr.amountPaid.toLocaleString()} ${pendingOcr.currency || ""}` : "—"}</p>
-                  <p><span className="font-medium">Payment Date:</span> {pendingOcr.paymentDate || "—"}</p>
-                  <p><span className="font-medium">Reference:</span> {pendingOcr.paymentReference || "—"}</p>
-                </div>
-                {pendingOcr.amountPaid == null && (
-                  <div className="mt-3">
-                    <label className={`mb-1 block text-xs font-medium ${isUnconditional ? "text-white/80" : "text-slate-600"}`}>
-                      OCR could not extract amount — enter manually:
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      value={manualDepositAmount}
-                      onChange={(e) => setManualDepositAmount(e.target.value)}
-                      placeholder="e.g. 2000"
-                      className="w-full max-w-xs rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900"
-                    />
-                  </div>
-                )}
-                {hasPendingApproval && (
-                  <button
-                    type="button"
-                    onClick={() => void approveDeposit()}
-                    disabled={approving}
-                    className="mt-3 inline-flex rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
-                  >
-                    {approving ? "Approving…" : "✓ Approve Deposit"}
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Approved deposits list */}
-            {approvedList.length > 0 && (
-              <div className="space-y-2">
-                <p className={`text-xs font-semibold uppercase tracking-wide ${isUnconditional ? "text-white/70" : "text-slate-500"}`}>
-                  Approved Deposits
-                </p>
-                {approvedList.map((item, idx) => (
-                  <div
-                    key={`${item.documentId}-${idx}`}
-                    className={`rounded-lg px-3 py-2 text-sm ${isUnconditional ? "bg-white/15 text-white" : "border border-slate-200 text-slate-700"}`}
-                  >
-                    <span className="font-medium">Deposit {idx + 1}: </span>
-                    {(item.amountPaid || 0).toLocaleString()} {effectiveCurrency}
-                    <span className={`ml-2 text-xs ${isUnconditional ? "text-white/60" : "text-slate-500"}`}>
-                      {item.approvedAt ? new Date(item.approvedAt).toLocaleDateString("en-GB") : ""}
-                    </span>
-                  </div>
-                ))}
-                <div className={`rounded-lg px-3 py-2 text-sm font-semibold ${isUnconditional ? "bg-white/20 text-white" : "border border-blue-200 bg-blue-50 text-blue-800"}`}>
-                  Total deducted from required funds: {data.summary.depositPaid.toLocaleString()} {effectiveCurrency}
-                </div>
-              </div>
-            )}
-          </section>
-        );
-      })()}
 
       <section className="rounded-lg border border-gray-200 bg-white p-6">
         <h3 className="text-lg font-semibold text-gray-900">Fund Allocation Summary</h3>
@@ -1986,6 +1992,21 @@ export default function ApplicationFinanceTab({ applicationId, userRole, student
           <a href="#general-documents" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
             Continue
           </a>
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-slate-200 bg-white p-6">
+        <h3 className="text-lg font-semibold text-gray-900">Additional Deposit Receipt (Optional)</h3>
+        <p className="mt-1 text-sm text-slate-500">Upload a second or subsequent deposit receipt if you have made more than one deposit payment.</p>
+        <div className="mt-4">
+          <ChecklistUploadZone
+            onFileSelected={uploadDepositReceipt}
+            uploading={uploading}
+            studentId={data.studentId}
+            checklistItemName="Additional Deposit Receipt"
+            documentField={`finance:deposit-receipt:${applicationId}`}
+            documentType="FINANCIAL_PROOF"
+          />
         </div>
       </section>
 

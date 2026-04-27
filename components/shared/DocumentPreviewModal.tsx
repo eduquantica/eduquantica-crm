@@ -114,17 +114,11 @@ export default function DocumentPreviewModal({ fileUrl, fileName, onClose }: Pro
           )}
 
           {isImage && imageBroken && (
-            <div className="flex h-full min-h-[40vh] items-center justify-center">
-              <div className="max-w-md rounded-xl border border-slate-200 bg-white p-6 text-center">
-                <p className="text-sm text-slate-700">Image preview is unavailable. Please download to view.</p>
-                <a
-                  href={downloadUrl}
-                  className="mt-4 inline-flex rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
-                >
-                  Download File
-                </a>
-              </div>
-            </div>
+            <iframe
+              src={resolvedUrl}
+              title={fileName || "Document preview"}
+              className="h-full min-h-96 w-full rounded-lg border border-slate-200 bg-white"
+            />
           )}
 
           {!isPdf && !isImage && !isWord && (

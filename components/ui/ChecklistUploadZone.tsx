@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Smartphone } from "lucide-react";
 import QRCodeUploadModal from "@/components/shared/QRCodeUploadModal";
 
@@ -27,6 +27,7 @@ export default function ChecklistUploadZone({
   documentType,
   onMobileUploadCompleted,
 }: Props) {
+  const inputId = useId();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
@@ -102,14 +103,13 @@ export default function ChecklistUploadZone({
       )}
 
       <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          disabled={uploading}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+        <label
+          htmlFor={uploading ? undefined : inputId}
+          className={`rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white ${uploading ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-blue-700"}`}
+          aria-disabled={uploading}
         >
           {uploading ? "Uploading..." : "Upload from Computer"}
-        </button>
+        </label>
 
         <button
           type="button"
@@ -124,8 +124,10 @@ export default function ChecklistUploadZone({
       </div>
 
       <input
+        id={inputId}
         ref={inputRef}
         type="file"
+        disabled={uploading}
         accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.doc,.docx,application/pdf,image/*,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         className="hidden"
         onChange={(e) => {
