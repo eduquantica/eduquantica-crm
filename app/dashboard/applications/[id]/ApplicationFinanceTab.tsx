@@ -12,6 +12,7 @@ type Props = {
   applicationId: string;
   userRole: string;
   studentNationality?: string | null;
+  applicationStatus?: string | null;
 };
 
 type FinancePayload = {
@@ -277,10 +278,9 @@ const DEFAULT_ACCOUNT: FundingAccount = {
   accessibleImmediately: true,
 };
 
-export default function ApplicationFinanceTab({ applicationId, userRole, studentNationality }: Props) {
+export default function ApplicationFinanceTab({ applicationId, userRole, studentNationality, applicationStatus }: Props) {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [approving, setApproving] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [savingFunding, setSavingFunding] = useState(false);
   const [showAnotherDepositUpload, setShowAnotherDepositUpload] = useState(false);
@@ -290,7 +290,6 @@ export default function ApplicationFinanceTab({ applicationId, userRole, student
   const [approvingBankDocumentId, setApprovingBankDocumentId] = useState<string | null>(null);
   const [reviewingFinanceDocId, setReviewingFinanceDocId] = useState<string | null>(null);
   const [deletingFinanceDocId, setDeletingFinanceDocId] = useState<string | null>(null);
-  const [manualDepositAmount, setManualDepositAmount] = useState<string>("");
   const [selectedSources, setSelectedSources] = useState<FundingSource[]>([]);
   const [sponsorshipType, setSponsorshipType] = useState<SponsorshipType | "">("");
   const [accountMeta, setAccountMeta] = useState<AccountMeta[]>([]);
@@ -385,12 +384,8 @@ export default function ApplicationFinanceTab({ applicationId, userRole, student
 
   const displayDepositPaid = useMemo(() => {
     if (!data) return 0;
-    const extractedAmount = data.depositReceipt.upload?.ocr?.amountPaid;
-    if (extractedAmount != null) return data.summary.depositPaid;
-    const manual = Number(manualDepositAmount || 0);
-    if (!Number.isFinite(manual) || manual <= 0) return data.summary.depositPaid;
-    return Math.max(data.summary.depositPaid, manual);
-  }, [data, manualDepositAmount]);
+    return data.summary.depositPaid;
+  }, [data]);
 
   const computedRemainingTuition = useMemo(() => {
     if (!data) return 0;
@@ -955,22 +950,6 @@ export default function ApplicationFinanceTab({ applicationId, userRole, student
     }
   }
 
-  async function approveDeposit() {
-    setApproving(true);
-    try {
-      const res = await fetch(`/api/dashboard/applications/${applicationId}/finance/deposit-receipt/approve`, {
-        method: "POST",
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to approve deposit");
-      toast.success("Deposit approved and added to checklist verification.");
-      await loadData();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to approve deposit");
-    } finally {
-      setApproving(false);
-    }
-  }
 
   if (loading) {
     return <div className="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-600">Loading finance workflow...</div>;
@@ -1006,51 +985,6 @@ export default function ApplicationFinanceTab({ applicationId, userRole, student
         </section>
       )}
 
-      <section className="rounded-lg border border-gray-200 bg-white p-6">
-        <h3 className="text-lg font-semibold text-gray-900">Upload Deposit Receipt</h3>
-        <div className="mt-4">
-          <ChecklistUploadZone
-            onFileSelected={uploadDepositReceipt}
-            uploading={uploading}
-            studentId={data.studentId}
-            checklistItemName="Deposit Receipt"
-            documentField={`finance:deposit-receipt:${applicationId}`}
-            documentType="FINANCIAL_PROOF"
-          />
-        </div>
-
-        {data.depositReceipt.upload?.ocr && (
-          <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-            <p className="font-semibold text-slate-900">OCR Extracted Details</p>
-            <p>Amount Paid: {data.depositReceipt.upload.ocr.amountPaid ?? "-"} {data.depositReceipt.upload.ocr.currency || ""}</p>
-            <p>Payment Date: {data.depositReceipt.upload.ocr.paymentDate || "-"}</p>
-            <p>Payment Reference: {data.depositReceipt.upload.ocr.paymentReference || "-"}</p>
-            {data.depositReceipt.upload.ocr.amountPaid == null && (
-              <div className="mt-3">
-                <label className="mb-1 block text-xs font-medium text-slate-600">Enter deposit amount manually</label>
-                <input
-                  type="number"
-                  min={0}
-                  value={manualDepositAmount}
-                  onChange={(event) => setManualDepositAmount(event.target.value)}
-                  className="w-full max-w-xs rounded-lg border border-slate-300 px-3 py-2"
-                />
-              </div>
-            )}
-          </div>
-        )}
-
-        {data.depositReceipt.upload && !data.depositReceipt.approval && canApproveByRole && data.canApproveDeposit && (
-          <button
-            type="button"
-            onClick={() => void approveDeposit()}
-            disabled={approving}
-            className="mt-4 inline-flex rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
-          >
-            {approving ? "Approving..." : "Approve Deposit"}
-          </button>
-        )}
-      </section>
 
       <section id="funding-sources" className="rounded-lg border border-gray-200 bg-white p-6">
         <h3 className="text-lg font-semibold text-gray-900">Financial Summary</h3>
@@ -1846,42 +1780,85 @@ export default function ApplicationFinanceTab({ applicationId, userRole, student
         </button>
       </section>
 
-      <section className="rounded-lg border border-gray-200 bg-white p-6">
-        <h3 className="text-lg font-semibold text-gray-900">Deposits Paid</h3>
-
-        {(data.depositReceipt.approvals || []).length === 0 ? (
-          <p className="mt-3 text-sm text-slate-600">No approved deposits yet.</p>
-        ) : (
-          <div className="mt-3 space-y-2">
-            {(data.depositReceipt.approvals || []).map((item, idx) => (
-              <div key={`${item.documentId}-${idx}`} className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700">
-                <span className="font-medium">Deposit {idx + 1}: </span>
-                {(item.amountPaid || 0).toLocaleString()} {effectiveCurrency}
-                <span className="ml-2 text-xs text-slate-500">
-                  {item.approvedAt ? new Date(item.approvedAt).toLocaleDateString("en-GB") : ""}
+      {(() => {
+        const isUnconditional = applicationStatus === "UNCONDITIONAL_OFFER"
+          || applicationStatus === "FINANCE_IN_PROGRESS"
+          || applicationStatus === "DEPOSIT_PAID"
+          || applicationStatus === "FINANCE_COMPLETE"
+          || applicationStatus === "CAS_ISSUED"
+          || applicationStatus === "VISA_APPLIED"
+          || applicationStatus === "ENROLLED";
+        return (
+          <section
+            className="rounded-lg p-6"
+            style={
+              isUnconditional
+                ? { background: "linear-gradient(135deg, #1B2A4A 0%, #2f4f86 40%, #F5A623 100%)", border: "none" }
+                : { border: "1px solid #e2e8f0", background: "#fff" }
+            }
+          >
+            <div className="flex items-center gap-3 mb-1">
+              {isUnconditional && (
+                <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-bold text-white tracking-wide">
+                  🎉 Unconditional Offer — Deposit Section
                 </span>
-              </div>
-            ))}
-            <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800">
-              Total approved deposits deducted: {data.summary.depositPaid.toLocaleString()} {effectiveCurrency}
+              )}
             </div>
-          </div>
-        )}
+            <h3 className={`text-lg font-semibold ${isUnconditional ? "text-white" : "text-gray-900"}`}>
+              Deposits Paid
+            </h3>
 
-        <button
-          type="button"
-          onClick={() => setShowAnotherDepositUpload((prev) => !prev)}
-          className="mt-4 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-        >
-          I have paid another deposit
-        </button>
+            {(data.depositReceipt.approvals || []).length === 0 ? (
+              <p className={`mt-3 text-sm ${isUnconditional ? "text-white/80" : "text-slate-600"}`}>
+                No approved deposits yet.
+              </p>
+            ) : (
+              <div className="mt-3 space-y-2">
+                {(data.depositReceipt.approvals || []).map((item, idx) => (
+                  <div
+                    key={`${item.documentId}-${idx}`}
+                    className={`rounded-lg px-3 py-2 text-sm ${isUnconditional ? "bg-white/15 text-white" : "border border-slate-200 text-slate-700"}`}
+                  >
+                    <span className="font-medium">Deposit {idx + 1}: </span>
+                    {(item.amountPaid || 0).toLocaleString()} {effectiveCurrency}
+                    <span className={`ml-2 text-xs ${isUnconditional ? "text-white/60" : "text-slate-500"}`}>
+                      {item.approvedAt ? new Date(item.approvedAt).toLocaleDateString("en-GB") : ""}
+                    </span>
+                  </div>
+                ))}
+                <div className={`rounded-lg px-3 py-2 text-sm font-semibold ${isUnconditional ? "bg-white/20 text-white" : "border border-blue-200 bg-blue-50 text-blue-800"}`}>
+                  Total approved deposits deducted: {data.summary.depositPaid.toLocaleString()} {effectiveCurrency}
+                </div>
+              </div>
+            )}
 
-        {showAnotherDepositUpload && (
-          <div className="mt-4">
-            <ChecklistUploadZone onFileSelected={uploadDepositReceipt} uploading={uploading} />
-          </div>
-        )}
-      </section>
+            <button
+              type="button"
+              onClick={() => setShowAnotherDepositUpload((prev) => !prev)}
+              className={`mt-4 rounded-lg border px-4 py-2 text-sm font-semibold transition ${
+                isUnconditional
+                  ? "border-white/40 bg-white/10 text-white hover:bg-white/20"
+                  : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              I have paid another deposit
+            </button>
+
+            {showAnotherDepositUpload && (
+              <div className="mt-4">
+                <ChecklistUploadZone
+                  onFileSelected={uploadDepositReceipt}
+                  uploading={uploading}
+                  studentId={data.studentId}
+                  checklistItemName="Deposit Receipt"
+                  documentField={`finance:deposit-receipt:${applicationId}`}
+                  documentType="FINANCIAL_PROOF"
+                />
+              </div>
+            )}
+          </section>
+        );
+      })()}
 
       <section className="rounded-lg border border-gray-200 bg-white p-6">
         <h3 className="text-lg font-semibold text-gray-900">Fund Allocation Summary</h3>

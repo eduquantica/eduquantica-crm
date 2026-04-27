@@ -1247,6 +1247,7 @@ export default function ApplicationDetailClient({
               applicationId={application.id}
               userRole={userRole}
               studentNationality={application.student.nationality || null}
+              applicationStatus={application.status}
             />
           )}
 

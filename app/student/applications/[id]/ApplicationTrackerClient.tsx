@@ -651,6 +651,44 @@ export default function ApplicationTrackerClient({ applicationId }: { applicatio
 
           {activeTab === "documents" && (
             <section className="space-y-5">
+              {/* Conditional offer requirements */}
+              {data.status === "CONDITIONAL_OFFER" && data.offerConditions && (() => {
+                const conditions = data.offerConditions
+                  .split(/\n?\s*\d+[\.\)]\s+/)
+                  .filter(Boolean)
+                  .map((s) => s.trim())
+                  .filter(Boolean)
+                  .length > 1
+                  ? data.offerConditions.split(/\n?\s*\d+[\.\)]\s+/).filter(Boolean).map((s) => s.trim()).filter(Boolean)
+                  : data.offerConditions.split("\n").map((s) => s.trim()).filter(Boolean);
+                return conditions.length > 0 ? (
+                  <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-4">
+                    <div className="flex items-start gap-2 mb-3">
+                      <span className="text-lg">⚠️</span>
+                      <div>
+                        <h3 className="text-sm font-bold text-amber-900">Conditional Offer — Documents Required</h3>
+                        <p className="text-xs text-amber-700 mt-0.5">Upload supporting documents for each condition listed below.</p>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      {conditions.map((condition, idx) => (
+                        <div key={idx} className="rounded-lg border border-amber-200 bg-white p-3">
+                          <div className="flex items-start gap-2">
+                            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-100 text-xs font-bold text-amber-700">
+                              {idx + 1}
+                            </span>
+                            <p className="text-sm text-slate-800">{condition}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-3 text-xs text-amber-700">
+                      Upload your documents using the <strong>Upload</strong> button in the Milestone Documents or checklist sections below. Your counsellor will review and verify them.
+                    </p>
+                  </div>
+                ) : null;
+              })()}
+
               <div className="rounded-xl border border-slate-200 bg-white p-4">
                 <h3 className="text-sm font-semibold text-slate-900">Milestone Documents</h3>
                 <p className="mt-1 text-xs text-slate-500">Track completion across Application Submission, Offer Letter, Finance, CAS, and Visa.</p>
@@ -960,6 +998,7 @@ export default function ApplicationTrackerClient({ applicationId }: { applicatio
                 applicationId={data.id}
                 userRole="STUDENT"
                 studentNationality={data.student.nationality}
+                applicationStatus={data.status}
               />
             </section>
           )}

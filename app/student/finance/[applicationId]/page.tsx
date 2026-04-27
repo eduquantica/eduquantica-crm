@@ -56,6 +56,7 @@ export default async function StudentFinanceDetailPage({ params }: { params: { a
         applicationId={application.id}
         userRole="STUDENT"
         studentNationality={application.student.nationality}
+        applicationStatus={application.status}
       />
     </main>
   );

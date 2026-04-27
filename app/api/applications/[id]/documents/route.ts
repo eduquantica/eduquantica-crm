@@ -54,6 +54,7 @@ export async function GET(
     select: {
       id: true,
       status: true,
+      offerConditions: true,
       createdAt: true,
       intake: true,
       student: {
@@ -100,6 +101,7 @@ export async function GET(
     application: {
       id: application.id,
       status: application.status,
+      offerConditions: application.offerConditions,
       createdAt: application.createdAt,
       intake: application.intake,
       studentName: `${application.student.firstName} ${application.student.lastName}`.trim(),

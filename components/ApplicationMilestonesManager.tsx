@@ -1,6 +1,7 @@
 "use client";
 
-import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
 type RoleName = string;
 
@@ -19,6 +20,7 @@ type DocumentRow = {
   milestoneType: MilestoneType;
   offerType: OfferType | null;
   visaOutcome: VisaOutcome | null;
+  notes: string | null;
   fileName: string;
   fileUrl: string;
   uploadedByRole: string;
@@ -48,6 +50,7 @@ type FeeSummary = {
 type ApplicationMeta = {
   id: string;
   status: string;
+  offerConditions?: string | null;
   createdAt: string;
   intake: string | null;
   studentName: string;
@@ -56,6 +59,13 @@ type ApplicationMeta = {
   courseName: string;
   courseLevel: string;
 };
+
+function parseConditions(text: string | null | undefined): string[] {
+  if (!text) return [];
+  const numbered = text.split(/\n?\s*\d+[\.\)]\s+/).filter(Boolean);
+  if (numbered.length > 1) return numbered.map((s) => s.trim()).filter(Boolean);
+  return text.split("\n").map((s) => s.trim()).filter(Boolean);
+}
 
 type Props = {
   applicationId: string;
@@ -151,6 +161,9 @@ export default function ApplicationMilestonesManager({ applicationId, roleName, 
   const [offerType, setOfferType] = useState<OfferType>("CONDITIONAL");
   const [visaOutcome, setVisaOutcome] = useState<VisaOutcome>("APPROVED");
   const [saving, setSaving] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [conditionModalLabel, setConditionModalLabel] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -234,11 +247,8 @@ export default function ApplicationMilestonesManager({ applicationId, roleName, 
   const timelineProgress = timeline.length > 0 ? Math.round((completedTimelineCount / timeline.length) * 100) : 0;
   const nextPending = timeline.find((item) => !item.doc)?.event || "All milestones completed";
 
-  function onPickFile(event: ChangeEvent<HTMLInputElement>) {
-    const chosen = event.target.files?.[0];
-    if (!chosen) return;
-    setFile(chosen);
-    event.currentTarget.value = "";
+  function pickFile(f: File) {
+    setFile(f);
   }
 
   async function saveMilestoneDocument() {
@@ -248,21 +258,24 @@ export default function ApplicationMilestonesManager({ applicationId, roleName, 
     setMessage(null);
 
     try {
-      const reader = new FileReader();
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        reader.onerror = () => reject(new Error("Failed to read file"));
-        reader.onload = () => resolve(String(reader.result || ""));
-        reader.readAsDataURL(file);
-      });
+      // Upload file to storage first
+      const form = new FormData();
+      form.append("files", file);
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: form });
+      const uploadJson = (await uploadRes.json()) as { urls?: string[]; error?: string };
+      if (!uploadRes.ok || !uploadJson.urls?.[0]) {
+        throw new Error(uploadJson.error || "File upload failed");
+      }
 
       const payload: Record<string, unknown> = {
         milestoneType: modal.milestoneType,
         fileName: file.name,
-        fileUrl: dataUrl,
+        fileUrl: uploadJson.urls[0],
       };
 
       if (modal.milestoneType === "OFFER_LETTER") payload.offerType = offerType;
       if (modal.milestoneType === "VISA_COPY") payload.visaOutcome = visaOutcome;
+      if (conditionModalLabel) payload.notes = conditionModalLabel;
 
       const res = await fetch(`/api/applications/${applicationId}/documents`, {
         method: "POST",
@@ -273,15 +286,26 @@ export default function ApplicationMilestonesManager({ applicationId, roleName, 
       const json = (await res.json()) as { error?: string };
       if (!res.ok) throw new Error(json.error || "Failed to upload milestone document");
 
-      setMessage("Milestone document saved.");
+      toast.success("Document uploaded successfully.");
       setModal(null);
       setFile(null);
+      setConditionModalLabel(null);
       await load();
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Failed to upload milestone document");
+      const msg = saveError instanceof Error ? saveError.message : "Failed to upload milestone document";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
+  }
+
+  function openConditionUpload(conditionLabel: string) {
+    setConditionModalLabel(conditionLabel);
+    setModal({ milestoneType: "OFFER_LETTER", title: "Conditional Offer Document" });
+    setOfferType("CONDITIONAL");
+    setFile(null);
+    setDragOver(false);
   }
 
   async function deleteDocument(documentId: string) {
@@ -528,6 +552,54 @@ export default function ApplicationMilestonesManager({ applicationId, roleName, 
         </div>
       </section>
 
+      {/* Conditional offer requirements */}
+      {application?.status === "CONDITIONAL_OFFER" && application.offerConditions && (() => {
+        const conditions = parseConditions(application.offerConditions);
+        const conditionDocs = rows.filter((r) => r.milestoneType === "OFFER_LETTER" && r.offerType === "CONDITIONAL" && r.notes);
+        return conditions.length > 0 ? (
+          <section className="rounded-xl border-2 border-amber-300 bg-amber-50 p-4">
+            <div className="flex items-start gap-2 mb-3">
+              <span className="text-lg">⚠️</span>
+              <div>
+                <h2 className="text-base font-bold text-amber-900">Conditional Offer — Documents Required</h2>
+                <p className="text-xs text-amber-700 mt-0.5">The following conditions must be satisfied. Upload supporting documents for each.</p>
+              </div>
+            </div>
+            <div className="space-y-3">
+              {conditions.map((condition, idx) => {
+                const uploaded = conditionDocs.filter((d) => d.notes === condition);
+                return (
+                  <div key={idx} className="rounded-lg border border-amber-200 bg-white p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-2 flex-1">
+                        <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold ${uploaded.length > 0 ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                          {uploaded.length > 0 ? "✓" : idx + 1}
+                        </span>
+                        <p className="text-sm text-slate-800">{condition}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openConditionUpload(condition)}
+                        className="shrink-0 rounded-md bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700"
+                      >
+                        Upload
+                      </button>
+                    </div>
+                    {uploaded.length > 0 && (
+                      <div className="mt-2 space-y-1 pl-7">
+                        {uploaded.map((d) => (
+                          <p key={d.id} className="text-xs text-emerald-700">✓ {d.fileName} — {new Date(d.createdAt).toLocaleDateString("en-GB")}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        ) : null;
+      })()}
+
       <section className="rounded-xl border border-slate-200 bg-white p-4">
         <h2 className="text-lg font-semibold text-slate-900">Application Timeline</h2>
         <div className="mt-4 space-y-2">
@@ -558,20 +630,64 @@ export default function ApplicationMilestonesManager({ applicationId, roleName, 
 
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-xl bg-white p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
             <h3 className="text-base font-semibold text-slate-900">Upload {modal.title}</h3>
-            <p className="mt-1 text-xs text-slate-600">Choose a file then click Save.</p>
+            {conditionModalLabel && (
+              <p className="mt-1 text-xs text-amber-700 font-medium bg-amber-50 rounded px-2 py-1">
+                Condition: {conditionModalLabel}
+              </p>
+            )}
+            <p className="mt-1 text-xs text-slate-500">Drag & drop a file or click the area below to choose.</p>
 
-            <label className="mt-3 flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-3 py-6 text-center">
-              <span className="text-xs font-medium text-slate-700">Drop file or click to upload</span>
-              <input
-                type="file"
-                className="hidden"
-                onChange={onPickFile}
-              />
-            </label>
+            {/* Drop zone */}
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => fileInputRef.current?.click()}
+              onKeyDown={(e) => e.key === "Enter" && fileInputRef.current?.click()}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                const f = e.dataTransfer.files?.[0];
+                if (f) pickFile(f);
+              }}
+              className={`mt-4 flex min-h-[160px] cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed p-6 text-center transition-colors ${
+                dragOver ? "border-blue-500 bg-blue-50" : "border-slate-300 bg-slate-50 hover:border-slate-400 hover:bg-slate-100"
+              }`}
+            >
+              {file ? (
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-emerald-700">✓ {file.name}</p>
+                  <p className="text-xs text-slate-500">{(file.size / 1024).toFixed(0)} KB — click to change</p>
+                </div>
+              ) : (
+                <>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-200">
+                    <svg className="h-6 w-6 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                  </div>
+                  <p className="text-sm font-medium text-slate-700">Drop file here or <span className="text-blue-600 underline">browse</span></p>
+                  <p className="text-xs text-slate-400">PDF, JPG, PNG, DOC, DOCX supported</p>
+                </>
+              )}
+            </div>
 
-            {modal.milestoneType === "OFFER_LETTER" && (
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.doc,.docx,application/pdf,image/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) pickFile(f);
+                e.currentTarget.value = "";
+              }}
+            />
+
+            {modal.milestoneType === "OFFER_LETTER" && !conditionModalLabel && (
               <select
                 value={offerType}
                 onChange={(event) => setOfferType(event.target.value as OfferType)}
@@ -593,16 +709,16 @@ export default function ApplicationMilestonesManager({ applicationId, roleName, 
               </select>
             )}
 
-            {file && <p className="mt-3 text-xs text-slate-700">Selected: {file.name}</p>}
-
-            <div className="mt-4 flex justify-end gap-2">
+            <div className="mt-5 flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => {
                   setModal(null);
                   setFile(null);
+                  setConditionModalLabel(null);
+                  setDragOver(false);
                 }}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700"
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
                 Cancel
               </button>
@@ -610,9 +726,9 @@ export default function ApplicationMilestonesManager({ applicationId, roleName, 
                 type="button"
                 onClick={() => void saveMilestoneDocument()}
                 disabled={!file || saving}
-                className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
               >
-                {saving ? "Saving..." : "Save"}
+                {saving ? "Uploading…" : "Save"}
               </button>
             </div>
           </div>
