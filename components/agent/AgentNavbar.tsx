@@ -57,7 +57,7 @@ export default function AgentNavbar() {
         </button>
 
         {open && (
-          <div className="portal-shell-card absolute right-0 z-40 mt-2 w-56 overflow-hidden">
+          <div className="portal-shell-card absolute right-0 z-[200] mt-2 w-56 overflow-hidden">
             <div className="px-3 py-2">
               <p className="truncate text-sm font-semibold text-[var(--eq-ink)]">{userName}</p>
               <p className="truncate text-xs text-[var(--eq-ink-soft)]">{userEmail}</p>

@@ -199,6 +199,8 @@
 
   .portal-topbar {
     @apply border-b;
+    position: relative;
+    z-index: 50;
     border-color: rgba(27, 42, 74, 0.1);
     background: rgba(255, 255, 255, 0.92);
     backdrop-filter: blur(12px);

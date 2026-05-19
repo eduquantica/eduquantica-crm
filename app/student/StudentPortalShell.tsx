@@ -281,7 +281,7 @@ export default function StudentPortalShell({
 
           {/* Topbar */}
           <header
-            className="sticky top-0 z-30 border-b"
+            className="sticky top-0 z-50 border-b"
             style={{ borderColor: "rgba(27,42,74,0.1)", background: "rgba(255,255,255,0.95)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}
           >
             <div className="flex h-14 items-center justify-between gap-3 px-5 sm:px-7">
@@ -321,7 +321,7 @@ export default function StudentPortalShell({
                   </button>
 
                   {menuOpen && (
-                    <div className="absolute right-0 z-40 mt-2 w-52 overflow-hidden rounded-2xl border bg-white shadow-xl" style={{ borderColor: "rgba(27,42,74,0.1)" }}>
+                    <div className="absolute right-0 z-[200] mt-2 w-52 overflow-hidden rounded-2xl border bg-white shadow-xl" style={{ borderColor: "rgba(27,42,74,0.1)" }}>
                       <div className="px-4 py-3 border-b border-slate-100">
                         <p className="text-sm font-bold text-slate-900">{studentName}</p>
                         <p className="text-xs text-slate-400 truncate">{studentEmail}</p>
