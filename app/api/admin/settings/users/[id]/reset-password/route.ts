@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { sendMail } from "@/lib/email";
+import { sendPasswordResetEmail } from "@/lib/email";
 import { randomBytes } from "crypto";
 
 // POST /api/admin/settings/users/[id]/reset-password
@@ -45,22 +45,9 @@ export async function POST(
   });
 
   const base = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
-  await sendMail({
-    to: user.email,
-    subject: "EduQuantica — Password Reset Request",
-    text: [
-      `Hi ${user.name ?? ""},`,
-      "",
-      "An administrator has initiated a password reset for your account.",
-      "",
-      "Use the link below to set a new password (expires in 24 hours):",
-      `${base}/reset-password?token=${token}`,
-      "",
-      "If you did not expect this, please contact your administrator.",
-      "",
-      "The EduQuantica Team",
-    ].join("\n"),
-  }).catch(() => {});
+  const resetUrl = `${base}/reset-password?token=${token}`;
 
-  return NextResponse.json({ ok: true });
+  await sendPasswordResetEmail(user.email, resetUrl).catch(() => {});
+
+  return NextResponse.json({ ok: true, resetUrl });
 }

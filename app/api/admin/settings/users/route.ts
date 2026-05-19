@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth/next";
 import type { Session } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { sendMail } from "@/lib/email";
+import { sendWelcomeEmail } from "@/lib/email";
 import { randomBytes } from "crypto";
 import { z } from "zod";
 
@@ -129,22 +129,11 @@ export async function POST(req: NextRequest) {
     });
 
     const base = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
-    await sendMail({
-      to: user.email,
-      subject: "Welcome to EduQuantica CRM — Set Your Password",
-      text: [
-        `Hi ${user.name ?? ""},`,
-        "",
-        "An EduQuantica CRM account has been created for you.",
-        "",
-        "Please set your password using the link below (expires in 48 hours):",
-        `${base}/reset-password?token=${token}`,
-        "",
-        "The EduQuantica Team",
-      ].join("\n"),
-    }).catch(() => {});
+    const inviteUrl = `${base}/reset-password?token=${token}`;
 
-    return NextResponse.json({ ok: true, id: user.id }, { status: 201 });
+    await sendWelcomeEmail(user.email, user.name ?? user.email, inviteUrl).catch(() => {});
+
+    return NextResponse.json({ ok: true, id: user.id, inviteUrl }, { status: 201 });
   } catch (err: unknown) {
     if (err instanceof z.ZodError)
       return NextResponse.json({ error: err.issues[0]?.message ?? "Invalid input." }, { status: 400 });

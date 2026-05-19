@@ -7,7 +7,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/cn";
 import {
   Search, Plus, X, ChevronLeft, ChevronRight,
-  ShieldCheck, UserX, UserCheck, KeyRound, Loader2,
+  ShieldCheck, UserX, UserCheck, KeyRound, Loader2, Copy, CheckCheck, Mail,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -83,6 +83,17 @@ export default function UsersClient({ users, total, page, pageSize, staffRoles, 
     startTransition(() => router.push(`${pathname}?${p.toString()}`));
   }
 
+  // Invite link modal (shown after create or reset)
+  const [inviteLink, setInviteLink] = useState<{ url: string; recipientName: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  function copyLink(url: string) {
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    });
+  }
+
   // Create modal
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -103,9 +114,14 @@ export default function UsersClient({ users, total, page, pageSize, staffRoles, 
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { setCreateError(data?.error ?? "Something went wrong."); return; }
+      const savedName = createForm.name;
       setShowCreate(false);
       setCreateForm({ name: "", email: "", roleId: staffRoles[0]?.id ?? "" });
-      show("Account created. A set-password email has been sent.");
+      if (data.inviteUrl) {
+        setInviteLink({ url: data.inviteUrl, recipientName: savedName });
+      } else {
+        show("Account created. A set-password email has been sent.");
+      }
       startTransition(() => router.refresh());
     } catch { setCreateError("Network error."); }
     finally { setCreating(false); }
@@ -140,13 +156,18 @@ export default function UsersClient({ users, total, page, pageSize, staffRoles, 
     finally { setSaving(false); }
   }
 
-  async function handleResetPassword(id: string) {
+  async function handleResetPassword(id: string, name: string | null) {
     setResetting(true);
     try {
       const res = await fetch(`/api/admin/settings/users/${id}/reset-password`, { method: "POST" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { show(data?.error ?? "Something went wrong.", false); return; }
-      show("Password reset email sent.");
+      if (data.resetUrl) {
+        closePanel();
+        setInviteLink({ url: data.resetUrl, recipientName: name ?? "User" });
+      } else {
+        show("Password reset email sent.");
+      }
     } catch { show("Network error.", false); }
     finally { setResetting(false); }
   }
@@ -346,7 +367,7 @@ export default function UsersClient({ users, total, page, pageSize, staffRoles, 
                 <p className="text-xs text-slate-400 mb-2">Sends a new set-password link to the user (24 h expiry).</p>
                 <button
                   disabled={resetting || !selected.isActive}
-                  onClick={() => handleResetPassword(selected.id)}
+                  onClick={() => handleResetPassword(selected.id, selected.name)}
                   className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium disabled:opacity-50 transition border border-slate-300"
                 >
                   {resetting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <KeyRound className="w-3.5 h-3.5" />}
@@ -385,6 +406,54 @@ export default function UsersClient({ users, total, page, pageSize, staffRoles, 
             </div>
           </div>
         </>
+      )}
+
+      {/* ── Invite link modal ── */}
+      {inviteLink && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+              <div className="flex items-center gap-2">
+                <Mail className="w-5 h-5 text-blue-600" />
+                <h3 className="font-semibold text-slate-900">Set-Password Link</h3>
+              </div>
+              <button onClick={() => { setInviteLink(null); setCopied(false); }} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <p className="text-sm text-slate-600">
+                A set-password link has been generated for <span className="font-medium text-slate-900">{inviteLink.recipientName}</span>.
+                {process.env.NODE_ENV !== "production"
+                  ? " SMTP is not configured — share this link with the user directly."
+                  : " An email has been sent. You can also share this link directly as a backup."}
+              </p>
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                <span className="flex-1 text-xs text-slate-600 truncate font-mono">{inviteLink.url}</span>
+                <button
+                  onClick={() => copyLink(inviteLink.url)}
+                  className={cn(
+                    "shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition",
+                    copied
+                      ? "bg-green-100 text-green-700 border border-green-200"
+                      : "bg-blue-600 hover:bg-blue-700 text-white"
+                  )}
+                >
+                  {copied ? <><CheckCheck className="w-3.5 h-3.5" /> Copied!</> : <><Copy className="w-3.5 h-3.5" /> Copy Link</>}
+                </button>
+              </div>
+              <p className="text-xs text-slate-400">This link expires in 48 hours. The user should use it to set their password before logging in.</p>
+            </div>
+            <div className="px-6 pb-5 flex justify-end">
+              <button
+                onClick={() => { setInviteLink(null); setCopied(false); }}
+                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Toast */}
