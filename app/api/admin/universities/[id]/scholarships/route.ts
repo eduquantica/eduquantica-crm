@@ -5,7 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 function canManageScholarships(roleName?: string) {
-  return roleName === "ADMIN" || roleName === "MANAGER";
+  return roleName === "ADMIN" || roleName === "MANAGER" || roleName === "COUNSELLOR";
 }
 
 function canViewScholarships(roleName?: string) {
