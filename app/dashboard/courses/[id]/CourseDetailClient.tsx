@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Edit, DollarSign, Users, Award } from "lucide-react";
+import { ArrowLeft, Edit, DollarSign, Users, Award, X } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/cn";
 import CurrencyDisplay from "@/components/CurrencyDisplay";
@@ -129,8 +130,14 @@ function getIntakeStatus(deadline: string): "OPEN" | "LIKELY_OPEN" | "CLOSED" {
   return "OPEN";
 }
 
+const LIVING_COST_ESTIMATES: Record<string, number> = {
+  UK: 12000, USA: 15000, CANADA: 14000, AUSTRALIA: 13000, IRELAND: 11000,
+};
+
 export default function CourseDetailClient({ courseId }: CourseDetailClientProps) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState("overview");
+  const [showCostModal, setShowCostModal] = useState(false);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["course", courseId],
@@ -625,11 +632,17 @@ export default function CourseDetailClient({ courseId }: CourseDetailClientProps
 
           {/* Action Buttons */}
           <div className="space-y-3">
-            <button className="w-full flex items-center justify-center gap-2 rounded-md border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition">
+            <button
+              onClick={() => setShowCostModal(true)}
+              className="w-full flex items-center justify-center gap-2 rounded-md border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
+            >
               <DollarSign size={16} />
               Financial Calculator
             </button>
-            <button className="w-full flex items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-3 text-sm font-medium text-white hover:bg-blue-700 transition">
+            <button
+              onClick={() => router.push(`/dashboard/applications/new?courseId=${courseId}`)}
+              className="w-full flex items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-3 text-sm font-medium text-white hover:bg-blue-700 transition"
+            >
               <Award size={16} />
               Create Application
             </button>
@@ -641,6 +654,50 @@ export default function CourseDetailClient({ courseId }: CourseDetailClientProps
           </div>
         </div>
       </div>
+
+      {/* Financial Calculator Modal */}
+      {showCostModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-lg rounded-xl border border-gray-200 bg-white p-6 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-semibold text-gray-900">Financial Calculator</h3>
+              <button onClick={() => setShowCostModal(false)} className="rounded p-1 text-gray-400 hover:bg-gray-100">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="space-y-3 text-sm text-gray-700">
+              {(() => {
+                const country = course.university.country.toUpperCase().trim();
+                const living = LIVING_COST_ESTIMATES[country] ?? 10000;
+                const tuition = course.tuitionFee ?? 0;
+                const appFee = course.applicationFee ?? 0;
+                const total = tuition + appFee + living;
+                return (
+                  <>
+                    <div className="flex justify-between">
+                      <span>Annual tuition fee</span>
+                      <span className="font-medium">{course.currency} {tuition.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Application fee</span>
+                      <span className="font-medium">{appFee > 0 ? `${course.currency} ${appFee.toLocaleString()}` : "Free"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Est. annual living costs</span>
+                      <span className="font-medium">{course.currency} {living.toLocaleString()}</span>
+                    </div>
+                    <div className="border-t border-gray-200 pt-3 flex justify-between font-semibold text-gray-900">
+                      <span>Estimated first-year total</span>
+                      <span>{course.currency} {total.toLocaleString()}</span>
+                    </div>
+                    <p className="text-xs text-gray-400 pt-1">Estimates are indicative only and exclude personal expenses and exchange-rate shifts.</p>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

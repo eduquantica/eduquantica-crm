@@ -54,10 +54,6 @@ export async function GET(
       name: true,
       currency: true,
       universityId: true,
-      scholarships: {
-        where: { isActive: true },
-        orderBy: [{ deadline: "asc" }, { createdAt: "desc" }],
-      },
       university: {
         select: {
           id: true,
@@ -73,10 +69,19 @@ export async function GET(
     return NextResponse.json({ error: "Course not found" }, { status: 404 });
   }
 
+  // Fetch university-wide scholarships (courseId=null) AND course-specific ones together
+  const allScholarships = await db.scholarship.findMany({
+    where: {
+      universityId: course.universityId,
+      isActive: true,
+      OR: [{ courseId: null }, { courseId: course.id }],
+    },
+    orderBy: [{ deadline: "asc" }, { createdAt: "desc" }],
+  });
+
   const now = new Date();
-  const scholarshipIds = course.scholarships
+  const scholarshipIds = allScholarships
     .filter((scholarship) => !scholarship.deadline || scholarship.deadline >= now)
-    .filter((scholarship) => !scholarship.courseId || scholarship.courseId === course.id)
     .filter((scholarship) => nationalityAllowed(scholarship.nationalityRestrictions, student.nationality))
     .map((scholarship) => scholarship.id);
 
@@ -105,9 +110,8 @@ export async function GET(
 
   const bestScore = scoreCandidates.length ? Math.max(...scoreCandidates) : null;
 
-  const scholarships = course.scholarships
+  const scholarships = allScholarships
     .filter((scholarship) => !scholarship.deadline || scholarship.deadline >= now)
-    .filter((scholarship) => !scholarship.courseId || scholarship.courseId === course.id)
     .filter((scholarship) => nationalityAllowed(scholarship.nationalityRestrictions, student.nationality))
     .map((scholarship) => {
       const app = appByScholarship.get(scholarship.id) || null;
