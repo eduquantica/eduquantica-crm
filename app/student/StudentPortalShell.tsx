@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -114,17 +115,40 @@ export default function StudentPortalShell({
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
+  const [mounted, setMounted] = useState(false);
   const [bannerVisible, setBannerVisible] = useState(profileCompletion < 70);
-  const menuRef = useRef<HTMLDivElement | null>(null);
+  const menuTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuDropdownRef = useRef<HTMLDivElement | null>(null);
   const dismissKey = `student-profile-banner-dismissed-until-${studentId}`;
 
+  useEffect(() => { setMounted(true); }, []);
+
+  function openMenu() {
+    if (menuTriggerRef.current) {
+      const rect = menuTriggerRef.current.getBoundingClientRect();
+      setMenuPos({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
+    }
+    setMenuOpen((v) => !v);
+  }
+
   useEffect(() => {
+    if (!menuOpen) return;
     const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+      if (
+        menuTriggerRef.current?.contains(e.target as Node) ||
+        menuDropdownRef.current?.contains(e.target as Node)
+      ) return;
+      setMenuOpen(false);
     };
+    const onScroll = () => setMenuOpen(false);
     document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
+    window.addEventListener("scroll", onScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", handler);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, [menuOpen]);
 
   useEffect(() => {
     const raw = window.localStorage.getItem(dismissKey);
@@ -301,50 +325,25 @@ export default function StudentPortalShell({
               <div className="flex items-center gap-2">
                 <NotificationsBell />
 
-                <div className="relative" ref={menuRef}>
-                  <button
-                    type="button"
-                    onClick={() => setMenuOpen((v) => !v)}
-                    className="flex h-9 items-center gap-2 rounded-xl border px-2 hover:bg-slate-50 transition"
-                    style={{ borderColor: "rgba(27,42,74,0.14)" }}
+                <button
+                  ref={menuTriggerRef}
+                  type="button"
+                  onClick={openMenu}
+                  className="flex h-9 items-center gap-2 rounded-xl border px-2 hover:bg-slate-50 transition"
+                  style={{ borderColor: "rgba(27,42,74,0.14)" }}
+                  aria-expanded={menuOpen}
+                >
+                  <span
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-[11px] font-black text-[#1B2A4A]"
+                    style={{ background: "linear-gradient(135deg, #F5A623, #e8930f)" }}
                   >
-                    <span
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-[11px] font-black text-[#1B2A4A]"
-                      style={{ background: "linear-gradient(135deg, #F5A623, #e8930f)" }}
-                    >
-                      {initials(studentName)}
-                    </span>
-                    <span className="hidden max-w-[100px] truncate text-sm font-semibold text-slate-700 sm:block">
-                      {studentName.split(" ")[0]}
-                    </span>
-                    <ChevronDown className="h-3.5 w-3.5 text-slate-400 hidden sm:block" />
-                  </button>
-
-                  {menuOpen && (
-                    <div className="absolute right-0 z-[200] mt-2 w-52 overflow-hidden rounded-2xl border bg-white shadow-xl" style={{ borderColor: "rgba(27,42,74,0.1)" }}>
-                      <div className="px-4 py-3 border-b border-slate-100">
-                        <p className="text-sm font-bold text-slate-900">{studentName}</p>
-                        <p className="text-xs text-slate-400 truncate">{studentEmail}</p>
-                      </div>
-                      <div className="py-1">
-                        <Link href="/student/profile" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition">
-                          <User className="h-3.5 w-3.5 text-[#1B2A4A]" /> My Profile
-                        </Link>
-                        <Link href="/student/settings" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition">
-                          <Settings className="h-3.5 w-3.5 text-[#1B2A4A]" /> Settings
-                        </Link>
-                      </div>
-                      <div className="border-t border-slate-100 py-1">
-                        <button
-                          onClick={() => void signOut({ callbackUrl: "/login" })}
-                          className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-rose-500 hover:bg-rose-50 transition"
-                        >
-                          <LogOut className="h-3.5 w-3.5" /> Sign Out
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                    {initials(studentName)}
+                  </span>
+                  <span className="hidden max-w-[100px] truncate text-sm font-semibold text-slate-700 sm:block">
+                    {studentName.split(" ")[0]}
+                  </span>
+                  <ChevronDown className={`h-3.5 w-3.5 text-slate-400 hidden sm:block transition-transform duration-200 ${menuOpen ? "rotate-180" : ""}`} />
+                </button>
               </div>
             </div>
 
@@ -386,6 +385,37 @@ export default function StudentPortalShell({
       </div>
 
       <StudentFloatingChatButton unreadCount={unreadEduviCount} />
+
+      {/* Account dropdown — rendered in document.body to escape all stacking contexts */}
+      {menuOpen && mounted && createPortal(
+        <div
+          ref={menuDropdownRef}
+          style={{ position: "fixed", top: menuPos.top, right: menuPos.right, zIndex: 9999, borderColor: "rgba(27,42,74,0.1)" }}
+          className="w-52 overflow-hidden rounded-2xl border bg-white shadow-xl"
+        >
+          <div className="px-4 py-3 border-b border-slate-100">
+            <p className="text-sm font-bold text-slate-900">{studentName}</p>
+            <p className="text-xs text-slate-400 truncate">{studentEmail}</p>
+          </div>
+          <div className="py-1">
+            <Link href="/student/profile" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition">
+              <User className="h-3.5 w-3.5 text-[#1B2A4A]" /> My Profile
+            </Link>
+            <Link href="/student/settings" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition">
+              <Settings className="h-3.5 w-3.5 text-[#1B2A4A]" /> Settings
+            </Link>
+          </div>
+          <div className="border-t border-slate-100 py-1">
+            <button
+              onClick={() => void signOut({ callbackUrl: "/login" })}
+              className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-rose-500 hover:bg-rose-50 transition"
+            >
+              <LogOut className="h-3.5 w-3.5" /> Sign Out
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
