@@ -6,12 +6,6 @@ import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
 
-interface University {
-  id: string;
-  name: string;
-  currency: string;
-  country: string;
-}
 
 interface IntakeDate {
   date: string;
@@ -37,7 +31,6 @@ interface CourseData {
 
 interface EditCourseFormProps {
   course: CourseData;
-  universities: University[];
 }
 
 const LEVEL_OPTIONS = [
@@ -95,7 +88,7 @@ function parseIntakeDates(raw: unknown): IntakeDate[] {
   });
 }
 
-export default function EditCourseForm({ course, universities }: EditCourseFormProps) {
+export default function EditCourseForm({ course }: EditCourseFormProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");

@@ -44,16 +44,7 @@ export default async function EditCoursePage({ params }: { params: { id: string 
 
   if (!course || !course.fieldOfStudy) notFound();
 
-  const universities = await db.university.findMany({
-    where: { isActive: true },
-    select: { id: true, name: true, country: true, currency: true },
-    orderBy: { name: "asc" },
-  });
-
   return (
-    <EditCourseForm
-      course={{ ...course, fieldOfStudy: course.fieldOfStudy ?? "" }}
-      universities={universities}
-    />
+    <EditCourseForm course={{ ...course, fieldOfStudy: course.fieldOfStudy ?? "" }} />
   );
 }
