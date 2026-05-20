@@ -19,7 +19,7 @@ const ruleSchema = z.object({
   monthlyLivingCost: z.number().min(0),
   currency: z.string().min(3).max(3),
   defaultMonths: z.number().int().min(1).max(36),
-  rules: z.array(z.string().min(2)).min(1),
+  rules: z.array(z.string()).default([]),
 });
 
 const payloadSchema = z.object({
