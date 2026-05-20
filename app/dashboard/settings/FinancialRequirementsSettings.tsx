@@ -71,6 +71,7 @@ export default function FinancialRequirementsSettings() {
             <tr>
               <th className="px-3 py-2 text-left font-medium">Country</th>
               <th className="px-3 py-2 text-left font-medium">Monthly Living Cost</th>
+              <th className="px-3 py-2 text-left font-medium">Months</th>
               <th className="px-3 py-2 text-left font-medium">Annual Living Cost</th>
               <th className="px-3 py-2 text-left font-medium">Currency</th>
               <th className="px-3 py-2 text-left font-medium">Last Updated</th>
@@ -96,19 +97,25 @@ export default function FinancialRequirementsSettings() {
                     onChange={(e) =>
                       setRules((prev) => prev.map((r, i) => (i === idx ? { ...r, monthlyLivingCost: Number(e.target.value || 0) } : r)))
                     }
-                    className="w-36 rounded-lg border border-slate-300 px-2 py-1.5"
+                    className="w-32 rounded-lg border border-slate-300 px-2 py-1.5"
                   />
                 </td>
                 <td className="px-3 py-2">
                   <input
                     type="number"
-                    min={0}
-                    value={rule.monthlyLivingCost * 12}
+                    min={1}
+                    max={36}
+                    value={rule.defaultMonths}
                     onChange={(e) =>
-                      setRules((prev) => prev.map((r, i) => (i === idx ? { ...r, monthlyLivingCost: Number(e.target.value || 0) / 12 } : r)))
+                      setRules((prev) => prev.map((r, i) => (i === idx ? { ...r, defaultMonths: Math.max(1, Number(e.target.value || 1)) } : r)))
                     }
-                    className="w-36 rounded-lg border border-slate-300 px-2 py-1.5"
+                    className="w-20 rounded-lg border border-slate-300 px-2 py-1.5"
                   />
+                </td>
+                <td className="px-3 py-2">
+                  <div className="flex h-[34px] w-36 items-center rounded-lg border border-slate-200 bg-slate-50 px-2 text-sm text-slate-700">
+                    {(rule.monthlyLivingCost * rule.defaultMonths).toLocaleString()}
+                  </div>
                 </td>
                 <td className="px-3 py-2">
                   <input

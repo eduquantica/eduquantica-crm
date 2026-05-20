@@ -111,12 +111,13 @@ type EntryRequirementsResponse = {
   };
 };
 
-const LIVING_COST_ESTIMATES: Record<string, number> = {
-  UK: 12000,
-  USA: 15000,
-  CANADA: 14000,
-  AUSTRALIA: 13000,
-  IRELAND: 11000,
+type LivingCostRow = {
+  countryCode: string;
+  countryName: string;
+  monthlyLivingCost: number;
+  defaultMonths: number;
+  annualLivingCost: number;
+  currency: string;
 };
 
 function levelLabel(level: string) {
@@ -144,6 +145,7 @@ export default function StudentCourseDetailPage() {
   const [applying, setApplying] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [showCostModal, setShowCostModal] = useState(false);
+  const [livingCosts, setLivingCosts] = useState<LivingCostRow[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -157,9 +159,10 @@ export default function StudentCourseDetailPage() {
 
       const nationality = detailJson.data.student.nationality || "";
 
-      const [scholarshipsRes, entryRequirementsRes] = await Promise.all([
+      const [scholarshipsRes, entryRequirementsRes, livingCostsRes] = await Promise.all([
         fetch(`/api/student/courses/${courseId}/scholarships`, { cache: "no-store" }),
         fetch(`/api/courses/${courseId}/country-entry-requirements?studentNationality=${encodeURIComponent(nationality)}`, { cache: "no-store" }),
+        fetch("/api/living-costs", { cache: "no-store" }),
       ]);
 
       const scholarshipsJson = await scholarshipsRes.json() as ScholarshipResponse | { error?: string };
@@ -168,11 +171,13 @@ export default function StudentCourseDetailPage() {
       }
 
       const entryRequirementsJson = await entryRequirementsRes.json() as EntryRequirementsResponse;
+      const livingCostsJson = await livingCostsRes.json() as { data?: LivingCostRow[] };
 
       setPayload(detailJson.data);
       setIsWishlisted(detailJson.data.isWishlisted);
       setScholarships(scholarshipsJson.data.scholarships);
       setEntryRequirements(entryRequirementsJson.data ?? null);
+      setLivingCosts(livingCostsJson.data ?? []);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load course details");
@@ -249,9 +254,10 @@ export default function StudentCourseDetailPage() {
   }
 
   const livingEstimate = useMemo(() => {
-    const country = payload?.course.university.country.toUpperCase().trim() || "";
-    return LIVING_COST_ESTIMATES[country] || 10000;
-  }, [payload?.course.university.country]);
+    const countryName = payload?.course.university.country.trim().toLowerCase() || "";
+    const match = livingCosts.find((r) => r.countryName.toLowerCase() === countryName);
+    return match ? match.monthlyLivingCost * match.defaultMonths : 10000;
+  }, [payload?.course.university.country, livingCosts]);
 
   const estimatedTotal = (payload?.course.tuitionFee || 0) + (payload?.course.applicationFee || 0) + livingEstimate;
 

@@ -130,14 +130,29 @@ function getIntakeStatus(deadline: string): "OPEN" | "LIKELY_OPEN" | "CLOSED" {
   return "OPEN";
 }
 
-const LIVING_COST_ESTIMATES: Record<string, number> = {
-  UK: 12000, USA: 15000, CANADA: 14000, AUSTRALIA: 13000, IRELAND: 11000,
+type LivingCostRow = {
+  countryCode: string;
+  countryName: string;
+  monthlyLivingCost: number;
+  defaultMonths: number;
+  annualLivingCost: number;
+  currency: string;
 };
 
 export default function CourseDetailClient({ courseId }: CourseDetailClientProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("overview");
   const [showCostModal, setShowCostModal] = useState(false);
+
+  const { data: livingCosts = [] } = useQuery<LivingCostRow[]>({
+    queryKey: ["living-costs"],
+    queryFn: async () => {
+      const res = await fetch("/api/living-costs");
+      const json = await res.json();
+      return (json.data || []) as LivingCostRow[];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["course", courseId],
@@ -667,8 +682,16 @@ export default function CourseDetailClient({ courseId }: CourseDetailClientProps
             </div>
             <div className="space-y-3 text-sm text-gray-700">
               {(() => {
-                const country = course.university.country.toUpperCase().trim();
-                const living = LIVING_COST_ESTIMATES[country] ?? 10000;
+                const countryName = course.university.country.trim().toLowerCase();
+                const match = livingCosts.find(
+                  (r) => r.countryName.toLowerCase() === countryName,
+                );
+                const living = match
+                  ? match.monthlyLivingCost * match.defaultMonths
+                  : 10000;
+                const livingLabel = match
+                  ? `${match.monthlyLivingCost.toLocaleString()} × ${match.defaultMonths} months`
+                  : "estimate";
                 const tuition = course.tuitionFee ?? 0;
                 const appFee = course.applicationFee ?? 0;
                 const total = tuition + appFee + living;
@@ -683,7 +706,7 @@ export default function CourseDetailClient({ courseId }: CourseDetailClientProps
                       <span className="font-medium">{appFee > 0 ? `${course.currency} ${appFee.toLocaleString()}` : "Free"}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Est. annual living costs</span>
+                      <span>Est. living costs ({livingLabel})</span>
                       <span className="font-medium">{course.currency} {living.toLocaleString()}</span>
                     </div>
                     <div className="border-t border-gray-200 pt-3 flex justify-between font-semibold text-gray-900">
