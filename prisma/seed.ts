@@ -69,8 +69,8 @@ const ROLES: RoleSeed[] = [
     name: "MANAGER",
     label: "Manager",
     permissions: {
-      leads:          VIEW_EDIT,
-      students:       VIEW_EDIT,
+      leads:          VIEW_CREATE_EDIT,
+      students:       VIEW_CREATE_EDIT,
       applications:   VIEW_EDIT,
       universities:   VIEW_EDIT,
       courses:        FULL,
@@ -119,8 +119,8 @@ const ROLES: RoleSeed[] = [
     name: "BRANCH_MANAGER",
     label: "Branch Manager",
     permissions: {
-      leads:          VIEW_EDIT,
-      students:       VIEW_EDIT,
+      leads:          VIEW_CREATE_EDIT,
+      students:       VIEW_CREATE_EDIT,
       applications:   VIEW_EDIT,
       universities:   VIEW_ONLY,
       courses:        VIEW_ONLY,

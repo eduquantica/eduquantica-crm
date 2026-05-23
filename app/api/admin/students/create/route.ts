@@ -7,24 +7,34 @@ import { sendMail } from "@/lib/email";
 import { calculateProfileCompletion } from "@/lib/profile-completion";
 import { StudyGapCalculator } from "@/lib/study-gap";
 import { generateStudentNumber } from "@/lib/generateIds";
+import { checkPermission } from "@/lib/permissions";
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
-  if (!session || (session.user.roleName !== "ADMIN" && session.user.roleName !== "MANAGER" && session.user.roleName !== "ADMIN")) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
+  }
+  if (!checkPermission(session, "students", "canCreate")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const body = await req.json();
-  const {
-    firstName,
-    lastName,
-    email,
-    phone,
-    nationality,
-    countryOfResidence,
-    assignedCounsellorId,
-    subAgentId,
-  } = body;
+  let body: Record<string, unknown>;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
+  const firstName = typeof body.firstName === "string" ? body.firstName : "";
+  const lastName = typeof body.lastName === "string" ? body.lastName : "";
+  const email = typeof body.email === "string" ? body.email : "";
+  const phone = typeof body.phone === "string" ? body.phone : null;
+  const nationality = typeof body.nationality === "string" ? body.nationality : null;
+  const countryOfResidence = typeof body.countryOfResidence === "string" ? body.countryOfResidence : null;
+  const assignedCounsellorId = typeof body.assignedCounsellorId === "string" ? body.assignedCounsellorId : null;
+  const subAgentId = typeof body.subAgentId === "string" ? body.subAgentId : null;
+  const passportNumber = typeof body.passportNumber === "string" ? body.passportNumber : null;
+  const dateOfBirth = typeof body.dateOfBirth === "string" ? new Date(body.dateOfBirth) : null;
+  const passportExpiry = typeof body.passportExpiry === "string" ? new Date(body.passportExpiry) : null;
 
   if (!email) {
     return NextResponse.json({ error: "Email is required" }, { status: 400 });
@@ -44,31 +54,29 @@ export async function POST(req: Request) {
   const newUser = await db.user.create({
     data: {
       email,
-      name: `${firstName || ""} ${lastName || ""}`.trim(),
+      name: `${firstName} ${lastName}`.trim(),
       roleId: studentRole.id,
       isActive: true,
     },
   });
 
   const studentNumber = await generateStudentNumber();
-  // use any for the payload to avoid mismatches with the strict generated type
-  // (which expects nested relation create for user rather than userId).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const newStudent = await db.student.create({
     data: {
       userId: newUser.id,
       studentNumber,
-      firstName: firstName || "",
-      lastName: lastName || "",
+      firstName,
+      lastName,
       email,
-      phone: phone || null,
-      nationality: nationality || null,
-      address: countryOfResidence || null,
-      assignedCounsellorId: assignedCounsellorId || null,
-      subAgentId: subAgentId || null,
-      // additional optional profile fields if provided in request
-      dateOfBirth: body.dateOfBirth ? new Date(body.dateOfBirth) : null,
-      passportNumber: body.passportNumber || null,
-      passportExpiry: body.passportExpiry ? new Date(body.passportExpiry) : null,
+      phone,
+      nationality,
+      address: countryOfResidence,
+      assignedCounsellorId,
+      subAgentId,
+      dateOfBirth,
+      passportNumber,
+      passportExpiry,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any,
   });
