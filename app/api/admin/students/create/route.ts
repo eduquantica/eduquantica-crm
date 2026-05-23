@@ -40,90 +40,89 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Email is required" }, { status: 400 });
   }
 
-  const existingUser = await db.user.findUnique({ where: { email } });
-  if (existingUser) {
-    return NextResponse.json({ error: "A user with that email already exists" }, { status: 409 });
-  }
-
-  // get STUDENT role
-  const studentRole = await db.role.findUnique({ where: { name: "STUDENT" } });
-  if (!studentRole) {
-    return NextResponse.json({ error: "STUDENT role not found" }, { status: 500 });
-  }
-
-  const newUser = await db.user.create({
-    data: {
-      email,
-      name: `${firstName} ${lastName}`.trim(),
-      roleId: studentRole.id,
-      isActive: true,
-    },
-  });
-
-  const studentNumber = await generateStudentNumber();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const newStudent = await db.student.create({
-    data: {
-      userId: newUser.id,
-      studentNumber,
-      firstName,
-      lastName,
-      email,
-      phone,
-      nationality,
-      address: countryOfResidence,
-      assignedCounsellorId,
-      subAgentId,
-      dateOfBirth,
-      passportNumber,
-      passportExpiry,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any,
-  });
-
-  // record activity log for creator (helps notify later if needed)
   try {
-    await db.activityLog.create({
+    const existingUser = await db.user.findUnique({ where: { email } });
+    if (existingUser) {
+      return NextResponse.json({ error: "A user with that email already exists" }, { status: 409 });
+    }
+
+    const studentRole = await db.role.findUnique({ where: { name: "STUDENT" } });
+    if (!studentRole) {
+      return NextResponse.json({ error: "STUDENT role not found" }, { status: 500 });
+    }
+
+    const newUser = await db.user.create({
       data: {
-        userId: session.user.id,
-        entityType: "student",
-        entityId: newStudent.id,
-        action: "created student",
-        details: `Student ${newStudent.id} created by ${session.user.id}`,
+        email,
+        name: `${firstName} ${lastName}`.trim(),
+        roleId: studentRole.id,
+        isActive: true,
       },
     });
-  } catch (err) {
-    // non-fatal
-    console.error("Failed to write activity log for student creation", err);
-  }
 
-  // compute profile completion for new student
-  const profileCompletion = await calculateProfileCompletion(newStudent.id).catch(() => 0);
-  await StudyGapCalculator.recalculateAndHandleAlerts(newStudent.id).catch(() => undefined);
-
-  // send password set email
-  const token = randomBytes(32).toString("hex");
-  const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
-  await db.passwordResetToken.create({
-    data: { token, userId: newUser.id, expiresAt },
-  });
-
-  const setPasswordUrl = `${process.env.NEXTAUTH_URL}/reset-password?token=${token}`;
-  try {
-    await sendMail({
-      to: email,
-      subject: "Welcome to EduQuantica — Set Your Password",
-      text: `Welcome to EduQuantica, ${firstName || ""}!\n\nYour student account has been created. Set your password:\n\n${setPasswordUrl}\n\nThis link expires in 48 hours.`,
-      html: `
-        <h2>Welcome to EduQuantica, ${firstName || ""}!</h2>
-        <p>Your student account has been created. To get started, set your password by clicking below:</p>
-        <p><a href="${setPasswordUrl}" style="background-color:#2563eb;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;">Set Password</a></p>
-        <p>This link expires in 48 hours.</p>
-      `,
+    const studentNumber = await generateStudentNumber();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const newStudent = await db.student.create({
+      data: {
+        userId: newUser.id,
+        studentNumber,
+        firstName,
+        lastName,
+        email,
+        phone,
+        nationality,
+        address: countryOfResidence,
+        assignedCounsellorId,
+        subAgentId,
+        dateOfBirth,
+        passportNumber,
+        passportExpiry,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any,
     });
-  } catch (err) {
-    console.error("Failed to send welcome email", err);
-  }
 
-  return NextResponse.json({ data: { student: newStudent, user: newUser, profileCompletion } });
+    // non-fatal side effects
+    try {
+      await db.activityLog.create({
+        data: {
+          userId: session.user.id,
+          entityType: "student",
+          entityId: newStudent.id,
+          action: "created student",
+          details: `Student ${newStudent.id} created by ${session.user.id}`,
+        },
+      });
+    } catch (err) {
+      console.error("Failed to write activity log for student creation", err);
+    }
+
+    await calculateProfileCompletion(newStudent.id).catch(() => 0);
+    await StudyGapCalculator.recalculateAndHandleAlerts(newStudent.id).catch(() => undefined);
+
+    try {
+      const token = randomBytes(32).toString("hex");
+      const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
+      await db.passwordResetToken.create({ data: { token, userId: newUser.id, expiresAt } });
+
+      const setPasswordUrl = `${process.env.NEXTAUTH_URL}/reset-password?token=${token}`;
+      await sendMail({
+        to: email,
+        subject: "Welcome to EduQuantica — Set Your Password",
+        text: `Welcome to EduQuantica, ${firstName}!\n\nYour student account has been created. Set your password:\n\n${setPasswordUrl}\n\nThis link expires in 48 hours.`,
+        html: `
+          <h2>Welcome to EduQuantica, ${firstName}!</h2>
+          <p>Your student account has been created. To get started, set your password by clicking below:</p>
+          <p><a href="${setPasswordUrl}" style="background-color:#2563eb;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;">Set Password</a></p>
+          <p>This link expires in 48 hours.</p>
+        `,
+      });
+    } catch (err) {
+      console.error("Failed to send welcome email", err);
+    }
+
+    return NextResponse.json({ data: { student: newStudent, user: newUser } });
+  } catch (error) {
+    console.error("[/api/admin/students/create POST]", error);
+    return NextResponse.json({ error: "Failed to create student" }, { status: 500 });
+  }
 }

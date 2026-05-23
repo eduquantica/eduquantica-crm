@@ -89,17 +89,23 @@ export default function AddStudentPage() {
         }),
       });
 
+      let responseData: Record<string, unknown> = {};
+      try {
+        responseData = await res.json();
+      } catch {
+        throw new Error("Server error — please try again");
+      }
+
       if (res.status === 409) {
         setErrors({ email: "A user with this email already exists" });
         return;
       }
 
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to create student");
+        throw new Error((responseData.error as string) || "Failed to create student");
       }
 
-      const { data } = await res.json();
+      const data = responseData.data as { student: { id: string } };
       router.push(`/dashboard/students/${data.student.id}`);
       router.refresh();
     } catch (err) {
@@ -115,7 +121,7 @@ export default function AddStudentPage() {
         <h1 className="text-3xl font-bold text-slate-900 mb-2">Add New Student</h1>
         <p className="text-slate-600">Create a student profile</p>
       </div>
-      <form onSubmit={handleSubmit} className="bg-white rounded-lg border border-slate-200 p-8">
+      <form onSubmit={handleSubmit} noValidate className="bg-white rounded-lg border border-slate-200 p-8">
         {errors.submit && (
           <div className="mb-6 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
             {errors.submit}
