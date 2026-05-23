@@ -116,7 +116,6 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         const u = user as Required<typeof user>;
-        console.log("[JWT] Creating JWT token for user:", { userId: u.id, email: u.email });
         token.userId = u.id;
         token.roleId = u.roleId;
         token.roleName = u.roleName;
@@ -124,6 +123,40 @@ export const authOptions: NextAuthOptions = {
         token.permissions = u.permissions;
         token.subAgentApproved = u.subAgentApproved;
         token.subAgentApprovalStatus = u.subAgentApprovalStatus;
+        token.permissionsUpdatedAt = Date.now();
+      } else {
+        // Re-fetch permissions from DB every 5 minutes so permission changes
+        // (e.g. admin granting canCreate to a role) take effect without re-login.
+        const FIVE_MIN = 5 * 60 * 1000;
+        const lastFetch = (token.permissionsUpdatedAt as number) || 0;
+        if (Date.now() - lastFetch > FIVE_MIN && token.userId) {
+          try {
+            const dbUser = await db.user.findUnique({
+              where: { id: token.userId as string },
+              include: { role: { include: { permissions: true } }, subAgent: { select: { isApproved: true, approvalStatus: true } } },
+            });
+            if (dbUser) {
+              const permissions: PermissionMap = {};
+              for (const perm of dbUser.role.permissions) {
+                permissions[perm.module] = {
+                  canView: perm.canView,
+                  canCreate: perm.canCreate,
+                  canEdit: perm.canEdit,
+                  canDelete: perm.canDelete,
+                };
+              }
+              token.roleId = dbUser.role.id;
+              token.roleName = dbUser.role.name;
+              token.isBuiltIn = dbUser.role.isBuiltIn;
+              token.permissions = permissions;
+              token.subAgentApproved = dbUser.subAgent?.isApproved;
+              token.subAgentApprovalStatus = dbUser.subAgent ? String(dbUser.subAgent.approvalStatus) : undefined;
+              token.permissionsUpdatedAt = Date.now();
+            }
+          } catch {
+            // non-fatal: keep using existing token permissions
+          }
+        }
       }
       return token;
     },

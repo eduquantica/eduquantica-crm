@@ -47,5 +47,6 @@ declare module "next-auth/jwt" {
     subAgentStaffId?: string;
     subAgentId?: string;
     isBranchCounsellor?: boolean;
+    permissionsUpdatedAt?: number;
   }
 }
