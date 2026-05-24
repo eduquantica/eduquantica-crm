@@ -41,6 +41,9 @@ export default function ImportClient() {
       "interested_in",
       "preferred_destination",
       "notes",
+      "last_academic_qualification",
+      "do_you_have_ielts",
+      "ielts_score",
     ];
     const csv = headers.join(",") + "\n";
     const blob = new Blob([csv], { type: "text/csv" });

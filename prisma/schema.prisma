@@ -687,14 +687,17 @@ model Lead {
   assignedCounsellor   User?      @relation("CounsellorLeads", fields: [assignedCounsellorId], references: [id])
   subAgentId           String?
   subAgent             SubAgent?  @relation(fields: [subAgentId], references: [id])
-  nationality          String?
-  interestedCountry    String?
-  interestedLevel      String?
-  notes                String?
-  chatTranscript       Json?
-  campaign             String?
-  score                Int        @default(0) // 0-100 lead score
-  createdAt            DateTime   @default(now())
+  nationality               String?
+  interestedCountry         String?
+  interestedLevel           String?
+  notes                     String?
+  chatTranscript            Json?
+  campaign                  String?
+  score                     Int        @default(0)
+  lastAcademicQualification String?
+  hasIelts                  Boolean?
+  ieltsScore                Decimal?   @db.Decimal(3, 1)
+  createdAt                 DateTime   @default(now())
 
   // Back-relations
   communications Communication[]

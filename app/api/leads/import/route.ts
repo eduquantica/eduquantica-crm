@@ -17,6 +17,9 @@ type LeadImportRow = {
   interested_in?: string;
   preferred_destination?: string;
   notes?: string;
+  last_academic_qualification?: string;
+  do_you_have_ielts?: string;
+  ielts_score?: string;
 };
 
 export async function POST(req: Request) {
@@ -62,6 +65,11 @@ export async function POST(req: Request) {
 
     try {
       const counsellor = await getNextCounsellor();
+      const rawIelts = (row.do_you_have_ielts || "").trim().toLowerCase();
+      const hasIelts = rawIelts === "yes" ? true : rawIelts === "no" ? false : null;
+      const ieltsScoreRaw = parseFloat(row.ielts_score || "");
+      const ieltsScore = !isNaN(ieltsScoreRaw) ? ieltsScoreRaw : null;
+
       await db.lead.create({
         data: {
           firstName,
@@ -76,6 +84,9 @@ export async function POST(req: Request) {
           notes: row.notes || null,
           status: "NEW",
           assignedCounsellorId: counsellor?.id,
+          lastAcademicQualification: row.last_academic_qualification || null,
+          hasIelts,
+          ieltsScore,
         },
       });
       imported += 1;
