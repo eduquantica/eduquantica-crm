@@ -36,14 +36,14 @@ export default function ImportClient() {
       "email",
       "phone",
       "nationality",
+      "last_academic_qualification",
+      "do_you_have_ielts",
+      "ielts_score",
       "country_of_residence",
       "source",
       "interested_in",
       "preferred_destination",
       "notes",
-      "last_academic_qualification",
-      "do_you_have_ielts",
-      "ielts_score",
     ];
     const csv = headers.join(",") + "\n";
     const blob = new Blob([csv], { type: "text/csv" });
