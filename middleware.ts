@@ -45,6 +45,7 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith("/api/cron/")) return NextResponse.next();
   if (pathname.startsWith("/api/mobile-upload/")) return NextResponse.next();
   if (pathname.startsWith("/api/events/rsvp/")) return NextResponse.next();
+  if (pathname.startsWith("/api/webhooks/")) return NextResponse.next();
 
   // Mobile upload bridge pages are token-secured; do not require session auth
   if (pathname.startsWith("/upload/mobile/")) return NextResponse.next();
