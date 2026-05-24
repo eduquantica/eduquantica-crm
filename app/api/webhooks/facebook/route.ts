@@ -1,85 +1,64 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { getNextCounsellor } from "@/lib/counsellor";
-import { sendResendEmail } from "@/lib/resend";
+import { createHmac, timingSafeEqual } from "crypto";
+import { upsertLeadFromFieldData } from "@/lib/facebook-leads";
 
-function findField(fieldData: Array<{ name?: string; values?: string[] }> | undefined, key: string): string | null {
-  if (!fieldData) return null;
-  const match = fieldData.find((item) => (item.name || "").toLowerCase() === key.toLowerCase());
-  const value = match?.values?.[0];
-  return value || null;
+// ─── Graph API ────────────────────────────────────────────────────────────────
+
+interface GraphLeadResponse {
+  id: string;
+  field_data?: Array<{ name: string; values: string[] }>;
+  created_time?: string;
+  form_id?: string;
+  ad_id?: string;
+  error?: { message: string; code: number };
 }
 
-function normalizeFacebookPayload(payload: unknown): {
-  firstName: string;
-  lastName: string;
-  email: string | null;
-  phone: string | null;
-  leadId: string | null;
-  formId: string | null;
-  subAgentHint: string | null;
-} {
-  const input = (payload || {}) as Record<string, unknown>;
-  const changes =
-    ((input.entry as Array<Record<string, unknown>> | undefined)?.[0]?.changes as Array<Record<string, unknown>> | undefined)?.[0] ||
-    input;
-  const value = (changes.value as Record<string, unknown> | undefined) || input;
-  const fieldData = value.field_data as Array<{ name?: string; values?: string[] }> | undefined;
-
-  const fullName =
-    findField(fieldData, "full_name") ||
-    (typeof value.full_name === "string" ? value.full_name : null) ||
-    (typeof value.name === "string" ? value.name : null);
-
-  const firstName =
-    findField(fieldData, "first_name") ||
-    (typeof value.first_name === "string" ? value.first_name : null) ||
-    fullName?.split(" ").slice(0, 1).join(" ") ||
-    "";
-
-  const lastName =
-    findField(fieldData, "last_name") ||
-    (typeof value.last_name === "string" ? value.last_name : null) ||
-    (fullName?.split(" ").slice(1).join(" ") || "");
-
-  const email =
-    findField(fieldData, "email") ||
-    (typeof value.email === "string" ? value.email : null);
-
-  const phone =
-    findField(fieldData, "phone_number") ||
-    (typeof value.phone_number === "string" ? value.phone_number : null) ||
-    (typeof value.phone === "string" ? value.phone : null);
-
-  const leadId =
-    (typeof value.lead_id === "string" ? value.lead_id : null) ||
-    (typeof input.lead_id === "string" ? input.lead_id : null);
-
-  const formId =
-    (typeof value.form_id === "string" ? value.form_id : null) ||
-    (typeof input.form_id === "string" ? input.form_id : null);
-
-  const subAgentHint =
-    findField(fieldData, "sub_agent_id") ||
-    (typeof value.sub_agent_id === "string" ? value.sub_agent_id : null) ||
-    (typeof value.utm_content === "string" ? value.utm_content : null) ||
-    (typeof input.utm_content === "string" ? input.utm_content : null);
-
-  return { firstName, lastName, email, phone, leadId, formId, subAgentHint };
+/**
+ * Fetch full lead field_data from the Graph API using the leadgen_id.
+ * Facebook webhook notifications only contain the ID — the actual
+ * field_data (name, email, phone) must be retrieved in a second call.
+ */
+async function fetchLeadFromGraph(leadgenId: string): Promise<GraphLeadResponse | null> {
+  const token = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
+  if (!token) {
+    console.error("[fb-webhook] FACEBOOK_PAGE_ACCESS_TOKEN not set");
+    return null;
+  }
+  const url = `https://graph.facebook.com/v21.0/${leadgenId}?fields=field_data,created_time,form_id,ad_id&access_token=${token}`;
+  try {
+    const res = await fetch(url);
+    const data = (await res.json()) as GraphLeadResponse;
+    if (data.error) {
+      console.error("[fb-webhook] Graph API error:", data.error);
+      return null;
+    }
+    return data;
+  } catch (err) {
+    console.error("[fb-webhook] Graph API fetch failed:", err);
+    return null;
+  }
 }
 
-async function resolveSubAgentId(subAgentHint: string | null): Promise<string | null> {
-  if (!subAgentHint) return null;
+// ─── HMAC signature verification ─────────────────────────────────────────────
 
-  const byId = await db.subAgent.findUnique({ where: { id: subAgentHint }, select: { id: true } });
-  if (byId) return byId.id;
+async function verifySignature(req: Request, rawBody: string): Promise<boolean> {
+  const appSecret = process.env.FACEBOOK_APP_SECRET;
+  if (!appSecret) return true; // allow through in dev if not configured
 
-  const byReferral = await db.subAgent.findFirst({
-    where: { referralCode: subAgentHint },
-    select: { id: true },
-  });
-  return byReferral?.id || null;
+  const signature = req.headers.get("x-hub-signature-256");
+  if (!signature || !signature.startsWith("sha256=")) return false;
+
+  const expected = createHmac("sha256", appSecret).update(rawBody).digest("hex");
+  const received = signature.slice("sha256=".length);
+
+  try {
+    return timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(received, "hex"));
+  } catch {
+    return false;
+  }
 }
+
+// ─── GET — webhook verification challenge ────────────────────────────────────
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -97,96 +76,70 @@ export async function GET(req: Request) {
   return new NextResponse("Forbidden", { status: 403 });
 }
 
+// ─── POST — lead notification ─────────────────────────────────────────────────
+
 export async function POST(req: Request) {
+  // Read raw body first so HMAC verification is possible
+  const rawBody = await req.text();
+
+  const valid = await verifySignature(req, rawBody);
+  if (!valid) {
+    console.warn("[fb-webhook] Invalid HMAC signature — rejected");
+    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+  }
+
   let payload: unknown;
   try {
-    payload = await req.json();
+    payload = JSON.parse(rawBody);
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const normalized = normalizeFacebookPayload(payload);
-
-  if (!normalized.email) {
-    return NextResponse.json({ success: true, message: "Missing email, skipped" }, { status: 200 });
+  const entries = (payload as Record<string, unknown>)?.entry as Array<Record<string, unknown>> | undefined;
+  if (!Array.isArray(entries) || entries.length === 0) {
+    return NextResponse.json({ success: true, message: "No entries" }, { status: 200 });
   }
 
-  const existing = await db.lead.findFirst({
-    where: { email: normalized.email.toLowerCase() },
-    select: { id: true },
-  });
+  const results: Array<{ leadgenId: string; status: string }> = [];
 
-  if (existing) {
-    return NextResponse.json({ success: true, message: "Duplicate lead skipped" }, { status: 200 });
-  }
+  for (const entry of entries) {
+    const changes = entry.changes as Array<Record<string, unknown>> | undefined;
+    if (!Array.isArray(changes)) continue;
 
-  const counsellor = await getNextCounsellor();
-  const subAgentId = await resolveSubAgentId(normalized.subAgentHint);
+    for (const change of changes) {
+      if (change.field !== "leadgen") continue;
 
-  const leadData: {
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone: string | null;
-    source: "FACEBOOK";
-    status: "NEW";
-    notes: string | null;
-    assignedCounsellorId?: string;
-    subAgentId?: string;
-  } = {
-    firstName: normalized.firstName,
-    lastName: normalized.lastName,
-    email: normalized.email.toLowerCase(),
-    phone: normalized.phone,
-    source: "FACEBOOK",
-    status: "NEW",
-    notes: `lead_id=${normalized.leadId || ""}; form_id=${normalized.formId || ""}`,
-  };
-  if (subAgentId) leadData.subAgentId = subAgentId;
-  if (counsellor) leadData.assignedCounsellorId = counsellor.id;
+      const value = change.value as Record<string, unknown> | undefined;
+      // Facebook sends "leadgen_id" (not "lead_id") in the notification payload
+      const leadgenId = typeof value?.leadgen_id === "string" ? value.leadgen_id : null;
+      const formId = typeof value?.form_id === "string" ? value.form_id : null;
+      const adId = typeof value?.ad_id === "string" ? value.ad_id : null;
 
-  const lead = await db.lead.create({ data: leadData });
+      if (!leadgenId) {
+        results.push({ leadgenId: "unknown", status: "skipped: no leadgen_id in payload" });
+        continue;
+      }
 
-  const actor =
-    counsellor?.id ||
-    (await db.user.findFirst({ where: { role: { name: "ADMIN" } }, select: { id: true } }))?.id ||
-    (await db.user.findFirst({ select: { id: true } }))?.id;
+      // Fetch the actual lead field_data — not present in the notification itself
+      const leadData = await fetchLeadFromGraph(leadgenId);
+      if (!leadData?.field_data) {
+        console.warn(`[fb-webhook] No field_data for leadgen_id=${leadgenId}`);
+        results.push({ leadgenId, status: "skipped: graph fetch failed or no field_data" });
+        continue;
+      }
 
-  if (counsellor?.id) {
-    await db.activityLog.create({
-      data: {
-        userId: counsellor.id,
-        entityType: "lead",
-        entityId: lead.id,
-        action: "lead_assigned_notification",
-        details: `New Facebook lead assigned: ${lead.firstName} ${lead.lastName}${lead.email ? ` - ${lead.email}` : ""}`,
-      },
-    });
-  }
-
-  if (actor) {
-    await db.activityLog.create({
-      data: {
-        userId: actor,
-        entityType: "lead",
-        entityId: lead.id,
-        action: "lead_created_facebook",
-        details: `Lead created from Facebook Lead Ads: ${lead.firstName} ${lead.lastName}`,
-      },
-    });
-  }
-
-  if (counsellor && counsellor.email) {
-    try {
-      await sendResendEmail({
-        to: counsellor.email,
-        subject: `New Facebook lead: ${lead.firstName} ${lead.lastName} - ${lead.email || "No email"}`,
-        html: `<p>New Facebook lead assigned.</p><p><strong>Name:</strong> ${lead.firstName} ${lead.lastName}</p><p><strong>Email:</strong> ${lead.email || "-"}</p><p><strong>Phone:</strong> ${lead.phone || "-"}</p>`,
+      const { created, leadId } = await upsertLeadFromFieldData(leadData.field_data, {
+        leadgenId,
+        formId: formId || leadData.form_id,
+        adId: adId || leadData.ad_id,
       });
-    } catch (e) {
-      console.error("Failed to notify counsellor", e);
+
+      results.push({
+        leadgenId,
+        status: created ? `created: ${leadId}` : leadId ? `duplicate: ${leadId}` : "skipped: no email",
+      });
     }
   }
 
-  return NextResponse.json({ success: true, leadId: lead.id }, { status: 200 });
+  return NextResponse.json({ success: true, results }, { status: 200 });
 }
