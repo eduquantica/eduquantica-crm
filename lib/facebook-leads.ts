@@ -67,9 +67,15 @@ function parseIeltsScore(val: string | null): number | null {
 function buildCustomFields(fieldData: FieldData[]): Record<string, string> | null {
   const extra: Record<string, string> = {};
   for (const f of fieldData) {
-    if (!KNOWN_FIELDS.has(f.name.toLowerCase()) && f.values?.[0]) {
-      extra[f.name] = f.values[0];
+    if (!f.values?.[0]) continue;
+    const nameLower = f.name.toLowerCase();
+    if (IELTS_BOOL_FIELDS.includes(nameLower)) {
+      // Standard yes/no goes into the hasIelts column — anything else (e.g. "planning_soon") is surfaced here
+      const v = f.values[0].trim().toLowerCase();
+      if (v !== "yes" && v !== "no") extra[f.name] = f.values[0];
+      continue;
     }
+    if (!KNOWN_FIELDS.has(nameLower)) extra[f.name] = f.values[0];
   }
   return Object.keys(extra).length > 0 ? extra : null;
 }

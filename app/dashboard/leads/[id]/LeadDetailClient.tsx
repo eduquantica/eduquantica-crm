@@ -539,8 +539,10 @@ export default function LeadDetailClient({
                   <div className="space-y-1">
                     {Object.entries(lead.customFields).map(([key, value]) => (
                       <div key={key} className="text-sm text-slate-700">
-                        <span className="text-slate-500 capitalize">{key.replace(/_/g, " ")}: </span>
-                        {value}
+                        <span className="text-slate-500 capitalize">
+                          {key.replace(/[_?]/g, " ").trim()}:{" "}
+                        </span>
+                        {value.replace(/_/g, " ")}
                       </div>
                     ))}
                   </div>
