@@ -29,6 +29,7 @@ interface LeadRow {
   status: string;
   score: number;
   createdAt: string;
+  communicationsCount: number;
   assignedCounsellor: { id: string; name: string | null } | null;
   subAgent: { id: string; agencyName: string } | null;
 }
@@ -727,12 +728,27 @@ export default function LeadsClient({
                     )}
                     {/* Name */}
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <Link
-                        href={`${detailBasePath}/${lead.id}`}
-                        className="font-medium text-blue-700 hover:text-blue-900 hover:underline"
-                      >
-                        {lead.firstName} {lead.lastName}
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        {lead.status === "NEW" && lead.communicationsCount === 0 && (
+                          <span
+                            className={cn(
+                              "flex-shrink-0 w-2 h-2 rounded-full",
+                              lead.assignedCounsellor ? "bg-orange-400" : "bg-blue-500",
+                            )}
+                            title={
+                              lead.assignedCounsellor
+                                ? "Assigned — not yet contacted"
+                                : "New — needs assignment"
+                            }
+                          />
+                        )}
+                        <Link
+                          href={`${detailBasePath}/${lead.id}`}
+                          className="font-medium text-blue-700 hover:text-blue-900 hover:underline"
+                        >
+                          {lead.firstName} {lead.lastName}
+                        </Link>
+                      </div>
                     </td>
 
                     {/* Email */}

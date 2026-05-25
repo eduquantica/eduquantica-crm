@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next";
 import type { Session } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { Prisma } from "@prisma/client";
 
 const PAGE_SIZE = 25;
 
@@ -83,6 +84,83 @@ function buildWhere(roleName: string, userId: string, p: URLSearchParams, branch
   return and.length > 0 ? { AND: and } : {};
 }
 
+interface LeadRaw {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  phone: string | null;
+  nationality: string | null;
+  source: string;
+  status: string;
+  score: number;
+  createdAt: Date;
+  notes: string | null;
+  lastAcademicQualification: string | null;
+  hasIelts: boolean | null;
+  assignedCounsellorId: string | null;
+  counsellorName: string | null;
+  subAgentId: string | null;
+  agencyName: string | null;
+  communicationsCount: number | bigint;
+}
+
+function buildRawConditions(
+  roleName: string,
+  userId: string,
+  p: URLSearchParams,
+  branchSubAgentId: string | null,
+): Prisma.Sql[] {
+  const conds: Prisma.Sql[] = [];
+
+  if (roleName === "COUNSELLOR") conds.push(Prisma.sql`l."assignedCounsellorId" = ${userId}`);
+  if (roleName === "BRANCH_MANAGER" && branchSubAgentId) conds.push(Prisma.sql`l."subAgentId" = ${branchSubAgentId}`);
+
+  const search = p.get("search")?.trim();
+  if (search) {
+    const like = `%${search}%`;
+    conds.push(Prisma.sql`(l."firstName" ILIKE ${like} OR l."lastName" ILIKE ${like} OR l.email ILIKE ${like} OR l.phone ILIKE ${like})`);
+  }
+
+  const status = p.get("status");
+  if (status) conds.push(Prisma.sql`l.status::text = ${status}`);
+
+  const source = p.get("source");
+  if (source) conds.push(Prisma.sql`l.source::text = ${source}`);
+
+  const counsellorId = p.get("counsellorId");
+  if (counsellorId && roleName !== "COUNSELLOR") conds.push(Prisma.sql`l."assignedCounsellorId" = ${counsellorId}`);
+
+  const allocation = p.get("allocation");
+  if (allocation && roleName !== "COUNSELLOR") {
+    if (allocation === "UNALLOCATED") conds.push(Prisma.sql`l."assignedCounsellorId" IS NULL`);
+    else if (allocation === "ME") conds.push(Prisma.sql`l."assignedCounsellorId" = ${userId}`);
+    else conds.push(Prisma.sql`l."assignedCounsellorId" = ${allocation}`);
+  }
+
+  const subAgentId = p.get("subAgentId");
+  if (subAgentId) conds.push(Prisma.sql`l."subAgentId" = ${subAgentId}`);
+
+  const qualification = p.get("qualification");
+  if (qualification) conds.push(Prisma.sql`l."lastAcademicQualification" = ${qualification}`);
+
+  const ielts = p.get("ielts");
+  if (ielts === "yes") conds.push(Prisma.sql`l."hasIelts" = true`);
+  if (ielts === "no")  conds.push(Prisma.sql`l."hasIelts" = false`);
+
+  const from = p.get("from");
+  if (from) conds.push(Prisma.sql`l."createdAt" >= ${new Date(from)}`);
+
+  const to = p.get("to");
+  if (to) {
+    const toDate = new Date(to);
+    toDate.setHours(23, 59, 59, 999);
+    conds.push(Prisma.sql`l."createdAt" <= ${toDate}`);
+  }
+
+  return conds;
+}
+
 const LEAD_SELECT = {
   id: true,
   firstName: true,
@@ -160,17 +238,72 @@ export async function GET(req: NextRequest) {
 
     // ── Paginated list ─────────────────────────────────────────────────────────
     const page = Math.max(1, parseInt(p.get("page") ?? "1", 10));
+    const offset = (page - 1) * PAGE_SIZE;
 
-    const [total, leads] = await Promise.all([
+    const rawConds = buildRawConditions(roleName, userId, p, branchSubAgentId);
+    const whereClause = rawConds.length > 0
+      ? Prisma.sql`WHERE ${Prisma.join(rawConds, " AND ")}`
+      : Prisma.empty;
+
+    const [total, rawLeads] = await Promise.all([
       db.lead.count({ where }),
-      db.lead.findMany({
-        where,
-        select: LEAD_SELECT,
-        orderBy: { createdAt: "desc" },
-        skip: (page - 1) * PAGE_SIZE,
-        take: PAGE_SIZE,
-      }),
+      db.$queryRaw<LeadRaw[]>(Prisma.sql`
+        SELECT
+          l.id,
+          l."firstName",
+          l."lastName",
+          l.email,
+          l.phone,
+          l.nationality,
+          l.source::text  AS source,
+          l.status::text  AS status,
+          l.score,
+          l."createdAt",
+          l.notes,
+          l."lastAcademicQualification",
+          l."hasIelts",
+          l."assignedCounsellorId",
+          u.name          AS "counsellorName",
+          l."subAgentId",
+          sa."agencyName",
+          (SELECT COUNT(*)::int FROM "Communication" c WHERE c."leadId" = l.id) AS "communicationsCount"
+        FROM "Lead" l
+        LEFT JOIN "User" u  ON u.id  = l."assignedCounsellorId"
+        LEFT JOIN "SubAgent" sa ON sa.id = l."subAgentId"
+        ${whereClause}
+        ORDER BY
+          CASE
+            WHEN l.status::text = 'NEW' AND l."assignedCounsellorId" IS NULL THEN 0
+            WHEN l.status::text = 'NEW'                                       THEN 1
+            ELSE 2
+          END ASC,
+          l."createdAt" DESC
+        LIMIT ${PAGE_SIZE} OFFSET ${offset}
+      `),
     ]);
+
+    const leads = rawLeads.map((l) => ({
+      id: l.id,
+      firstName: l.firstName,
+      lastName: l.lastName,
+      email: l.email,
+      phone: l.phone,
+      nationality: l.nationality,
+      source: l.source,
+      status: l.status,
+      score: l.score,
+      createdAt: l.createdAt.toISOString(),
+      notes: l.notes,
+      lastAcademicQualification: l.lastAcademicQualification,
+      hasIelts: l.hasIelts,
+      communicationsCount: Number(l.communicationsCount),
+      assignedCounsellor: l.assignedCounsellorId
+        ? { id: l.assignedCounsellorId, name: l.counsellorName }
+        : null,
+      subAgent: l.subAgentId
+        ? { id: l.subAgentId, agencyName: l.agencyName }
+        : null,
+    }));
 
     return NextResponse.json({
       data: {
