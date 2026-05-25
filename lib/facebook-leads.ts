@@ -28,6 +28,7 @@ const KNOWN_FIELDS = new Set<string>([
   "full_name", "first_name", "last_name",
   "email", "phone_number", "phone",
   "sub_agent_id", "utm_content",
+  "inbox_url",
   ...QUALIFICATION_FIELDS,
   ...IELTS_BOOL_FIELDS,
   ...IELTS_SCORE_FIELDS,

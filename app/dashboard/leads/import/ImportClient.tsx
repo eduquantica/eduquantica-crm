@@ -9,12 +9,14 @@ interface CsvRow {
   email: string;
   phone?: string;
   nationality?: string;
+  last_academic_qualification?: string;
+  do_you_have_ielts?: string;
+  ielts_score?: string;
   country_of_residence?: string;
   source?: string;
   interested_in?: string;
   preferred_destination?: string;
   notes?: string;
-  // allow extra columns without using `any`
   [key: string]: unknown;
 }
 
@@ -96,7 +98,7 @@ export default function ImportClient() {
     if (validRows.length === 0) return;
     setImporting(true);
     try {
-      const res = await fetch("/api/admin/leads/import", {
+      const res = await fetch("/api/leads/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rows: validRows }),
@@ -159,33 +161,30 @@ export default function ImportClient() {
             <table className="min-w-full text-sm">
               <thead className="bg-slate-100 sticky top-0">
                 <tr>
-                  <th className="px-3 py-2">First Name</th>
-                  <th className="px-3 py-2">Last Name</th>
-                  <th className="px-3 py-2">Email</th>
-                  <th className="px-3 py-2">Phone</th>
-                  <th className="px-3 py-2">Nationality</th>
-                  <th className="px-3 py-2">Country of Res.</th>
-                  <th className="px-3 py-2">Source</th>
-                  <th className="px-3 py-2">Interested In</th>
-                  <th className="px-3 py-2">Destination</th>
-                  <th className="px-3 py-2">Notes / Error</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold">First Name</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold">Last Name</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold">Email</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold">Phone</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold">Nationality</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold">Qualification</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold">IELTS</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold">IELTS Score</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold">Source</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold">Notes / Error</th>
                 </tr>
               </thead>
               <tbody>
                 {previewRows.map((r, idx) => (
-                  <tr
-                    key={idx}
-                    className={r.valid ? "bg-green-50" : "bg-red-50"}
-                  >
-                    <td className="px-3 py-2">{r.raw.first_name}</td>
-                    <td className="px-3 py-2">{r.raw.last_name}</td>
-                    <td className="px-3 py-2">{r.raw.email}</td>
-                    <td className="px-3 py-2">{r.raw.phone}</td>
-                    <td className="px-3 py-2">{r.raw.nationality}</td>
-                    <td className="px-3 py-2">{r.raw.country_of_residence}</td>
-                    <td className="px-3 py-2">{r.raw.source}</td>
-                    <td className="px-3 py-2">{r.raw.interested_in}</td>
-                    <td className="px-3 py-2">{r.raw.preferred_destination}</td>
+                  <tr key={idx} className={r.valid ? "bg-green-50" : "bg-red-50"}>
+                    <td className="px-3 py-2 text-sm">{r.raw.first_name}</td>
+                    <td className="px-3 py-2 text-sm">{r.raw.last_name}</td>
+                    <td className="px-3 py-2 text-sm">{r.raw.email}</td>
+                    <td className="px-3 py-2 text-sm">{r.raw.phone}</td>
+                    <td className="px-3 py-2 text-sm">{r.raw.nationality}</td>
+                    <td className="px-3 py-2 text-sm">{r.raw.last_academic_qualification}</td>
+                    <td className="px-3 py-2 text-sm">{r.raw.do_you_have_ielts}</td>
+                    <td className="px-3 py-2 text-sm">{r.raw.ielts_score}</td>
+                    <td className="px-3 py-2 text-sm">{r.raw.source}</td>
                     <td className="px-3 py-2 text-sm text-red-700">
                       {r.valid ? r.raw.notes : r.error}
                     </td>

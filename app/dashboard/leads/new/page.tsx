@@ -262,6 +262,7 @@ export default function AddLeadPage() {
                 <option value="">Select</option>
                 <option value="yes">Yes</option>
                 <option value="no">No</option>
+                <option value="planning_soon">Planning Soon</option>
               </select>
             </div>
 

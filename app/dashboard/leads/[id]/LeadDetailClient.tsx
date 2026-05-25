@@ -507,44 +507,55 @@ export default function LeadDetailClient({
                 </div>
               )}
 
-              {lead.lastAcademicQualification && (
-                <div>
-                  <p className="text-xs text-slate-500 uppercase mb-1">Academic Qualification</p>
+              {/* Academic Qualification — always visible */}
+              <div>
+                <p className="text-xs text-slate-500 uppercase mb-1">Academic Qualification</p>
+                {lead.lastAcademicQualification ? (
                   <p className="text-sm text-slate-700">{lead.lastAcademicQualification}</p>
-                </div>
-              )}
+                ) : (
+                  <p className="text-sm text-slate-400">—</p>
+                )}
+              </div>
 
-              {lead.hasIelts !== null && lead.hasIelts !== undefined && (
-                <div>
-                  <p className="text-xs text-slate-500 uppercase mb-1">Has IELTS</p>
-                  <span className={cn(
-                    "inline-block px-2 py-0.5 rounded-full text-xs font-medium",
-                    lead.hasIelts ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-600"
-                  )}>
-                    {lead.hasIelts ? "Yes" : "No"}
-                  </span>
-                </div>
-              )}
+              {/* IELTS status — always visible, 3 states: Yes / No / Planning Soon */}
+              <div>
+                <p className="text-xs text-slate-500 uppercase mb-1">IELTS</p>
+                {lead.hasIelts === true ? (
+                  <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Yes</span>
+                ) : lead.hasIelts === false ? (
+                  <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600">No</span>
+                ) : lead.customFields?.["do_you_have_ielts?"] === "planning_soon" ? (
+                  <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Planning Soon</span>
+                ) : (
+                  <p className="text-sm text-slate-400">—</p>
+                )}
+              </div>
 
-              {lead.ieltsScore && (
-                <div>
-                  <p className="text-xs text-slate-500 uppercase mb-1">IELTS Score</p>
+              {/* IELTS Score — always visible */}
+              <div>
+                <p className="text-xs text-slate-500 uppercase mb-1">IELTS Score</p>
+                {lead.ieltsScore ? (
                   <p className="text-sm font-semibold text-slate-700">{lead.ieltsScore}</p>
-                </div>
-              )}
+                ) : (
+                  <p className="text-sm text-slate-400">—</p>
+                )}
+              </div>
 
-              {lead.customFields && Object.keys(lead.customFields).length > 0 && (
+              {/* Additional Info — custom fields excluding handled IELTS key */}
+              {lead.customFields && Object.keys(lead.customFields).filter(k => k !== "do_you_have_ielts?").length > 0 && (
                 <div>
                   <p className="text-xs text-slate-500 uppercase mb-1">Additional Info</p>
                   <div className="space-y-1">
-                    {Object.entries(lead.customFields).map(([key, value]) => (
-                      <div key={key} className="text-sm text-slate-700">
-                        <span className="text-slate-500 capitalize">
-                          {key.replace(/[_?]/g, " ").trim()}:{" "}
-                        </span>
-                        {value.replace(/_/g, " ")}
-                      </div>
-                    ))}
+                    {Object.entries(lead.customFields)
+                      .filter(([key]) => key !== "do_you_have_ielts?")
+                      .map(([key, value]) => (
+                        <div key={key} className="text-sm text-slate-700">
+                          <span className="text-slate-500 capitalize">
+                            {key.replace(/[_?]/g, " ").trim()}:{" "}
+                          </span>
+                          {value.replace(/_/g, " ")}
+                        </div>
+                      ))}
                   </div>
                 </div>
               )}

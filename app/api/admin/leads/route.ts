@@ -98,6 +98,7 @@ interface LeadRaw {
   notes: string | null;
   lastAcademicQualification: string | null;
   hasIelts: boolean | null;
+  ieltsScore: string | null;
   assignedCounsellorId: string | null;
   counsellorName: string | null;
   subAgentId: string | null;
@@ -175,6 +176,7 @@ const LEAD_SELECT = {
   notes: true,
   lastAcademicQualification: true,
   hasIelts: true,
+  ieltsScore: true,
   assignedCounsellor: { select: { id: true, name: true } },
   subAgent: { select: { id: true, agencyName: true } },
 } as const;
@@ -209,7 +211,7 @@ export async function GET(req: NextRequest) {
         take: 5000,
       });
 
-      const header = ["Name", "Email", "Phone", "Nationality", "Source", "Qualification", "Has IELTS", "Counsellor", "Sub-Agent", "Status", "Date Added"];
+      const header = ["Name", "Email", "Phone", "Nationality", "Source", "Qualification", "IELTS", "IELTS Score", "Counsellor", "Sub-Agent", "Status", "Date Added"];
       const rows = leads.map((l) => [
         `${l.firstName} ${l.lastName}`,
         l.email ?? "",
@@ -218,6 +220,7 @@ export async function GET(req: NextRequest) {
         l.source,
         l.lastAcademicQualification ?? "",
         l.hasIelts === true ? "Yes" : l.hasIelts === false ? "No" : "",
+        l.ieltsScore != null ? String(l.ieltsScore) : "",
         l.assignedCounsellor?.name ?? "Unassigned",
         l.subAgent?.agencyName ?? "",
         l.status,
@@ -262,6 +265,7 @@ export async function GET(req: NextRequest) {
           l.notes,
           l."lastAcademicQualification",
           l."hasIelts",
+          l."ieltsScore"::text AS "ieltsScore",
           l."assignedCounsellorId",
           u.name          AS "counsellorName",
           l."subAgentId",
@@ -296,6 +300,7 @@ export async function GET(req: NextRequest) {
       notes: l.notes,
       lastAcademicQualification: l.lastAcademicQualification,
       hasIelts: l.hasIelts,
+      ieltsScore: l.ieltsScore ?? null,
       communicationsCount: Number(l.communicationsCount),
       assignedCounsellor: l.assignedCounsellorId
         ? { id: l.assignedCounsellorId, name: l.counsellorName }

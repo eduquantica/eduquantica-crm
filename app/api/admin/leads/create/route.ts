@@ -87,6 +87,7 @@ export async function POST(req: NextRequest) {
       nationality: nationality || null,
       lastAcademicQualification: lastAcademicQualification || null,
       hasIelts: hasIelts === true || hasIelts === false ? hasIelts : null,
+      customFields: hasIelts === "planning_soon" ? { "do_you_have_ielts?": "planning_soon" } : undefined,
       ieltsScore: typeof ieltsScore === "number" ? ieltsScore : null,
       interestedCountry: countryOfResidence || null,
       interestedLevel: interestedIn || null,
