@@ -36,6 +36,10 @@ interface Lead {
   campaign: string | null;
   interestedLevel: string | null;
   score: number;
+  lastAcademicQualification: string | null;
+  hasIelts: boolean | null;
+  ieltsScore: string | null;
+  customFields: Record<string, string> | null;
   assignedCounsellor: { id: string; name: string | null; email: string } | null;
   subAgent: { id: string; agencyName: string } | null;
   communications: CommunicationLog[];
@@ -500,6 +504,46 @@ export default function LeadDetailClient({
                   <p className="text-sm text-slate-700">
                     {lead.assignedCounsellor.name || lead.assignedCounsellor.email}
                   </p>
+                </div>
+              )}
+
+              {lead.lastAcademicQualification && (
+                <div>
+                  <p className="text-xs text-slate-500 uppercase mb-1">Academic Qualification</p>
+                  <p className="text-sm text-slate-700">{lead.lastAcademicQualification}</p>
+                </div>
+              )}
+
+              {lead.hasIelts !== null && lead.hasIelts !== undefined && (
+                <div>
+                  <p className="text-xs text-slate-500 uppercase mb-1">Has IELTS</p>
+                  <span className={cn(
+                    "inline-block px-2 py-0.5 rounded-full text-xs font-medium",
+                    lead.hasIelts ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-600"
+                  )}>
+                    {lead.hasIelts ? "Yes" : "No"}
+                  </span>
+                </div>
+              )}
+
+              {lead.ieltsScore && (
+                <div>
+                  <p className="text-xs text-slate-500 uppercase mb-1">IELTS Score</p>
+                  <p className="text-sm font-semibold text-slate-700">{lead.ieltsScore}</p>
+                </div>
+              )}
+
+              {lead.customFields && Object.keys(lead.customFields).length > 0 && (
+                <div>
+                  <p className="text-xs text-slate-500 uppercase mb-1">Additional Info</p>
+                  <div className="space-y-1">
+                    {Object.entries(lead.customFields).map(([key, value]) => (
+                      <div key={key} className="text-sm text-slate-700">
+                        <span className="text-slate-500 capitalize">{key.replace(/_/g, " ")}: </span>
+                        {value}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 

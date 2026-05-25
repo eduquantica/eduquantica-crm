@@ -54,7 +54,9 @@ export default async function ManagerLeadDetailPage({
 
   const serializedLead = {
     ...lead,
-    createdAt: lead.createdAt.toISOString(),
+    createdAt:    lead.createdAt.toISOString(),
+    ieltsScore:   lead.ieltsScore?.toString() ?? null,
+    customFields: (lead.customFields ?? null) as Record<string, string> | null,
     communications: lead.communications.map((c) => ({
       ...c,
       createdAt: c.createdAt.toISOString(),

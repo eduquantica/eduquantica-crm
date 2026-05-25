@@ -90,7 +90,9 @@ export default async function AgentLeadDetailPage({
 
   const serializedLead = {
     ...lead,
-    createdAt: lead.createdAt.toISOString(),
+    createdAt:    lead.createdAt.toISOString(),
+    ieltsScore:   lead.ieltsScore?.toString() ?? null,
+    customFields: lead.customFields as Record<string, string> | null,
     communications: lead.communications.map((c) => ({
       ...c,
       createdAt: c.createdAt.toISOString(),

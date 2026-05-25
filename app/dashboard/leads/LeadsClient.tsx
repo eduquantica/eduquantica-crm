@@ -40,6 +40,8 @@ interface Filters {
   counsellorId: string;
   allocation: string;
   subAgentId: string;
+  qualification: string;
+  ielts: string;
   from: string;
   to: string;
   page: number;
@@ -52,6 +54,8 @@ const DEFAULT_FILTERS: Filters = {
   counsellorId: "",
   allocation: "",
   subAgentId: "",
+  qualification: "",
+  ielts: "",
   from: "",
   to: "",
   page: 1,
@@ -94,14 +98,16 @@ const SOURCE_LABELS: Record<string, string> = {
 
 function buildParams(filters: Filters, extra: Record<string, string> = {}): URLSearchParams {
   const p = new URLSearchParams();
-  if (filters.search)      p.set("search",      filters.search);
-  if (filters.status)      p.set("status",      filters.status);
-  if (filters.source)      p.set("source",      filters.source);
-  if (filters.counsellorId)p.set("counsellorId",filters.counsellorId);
-  if (filters.allocation)  p.set("allocation",  filters.allocation);
-  if (filters.subAgentId)  p.set("subAgentId",  filters.subAgentId);
-  if (filters.from)        p.set("from",        filters.from);
-  if (filters.to)          p.set("to",          filters.to);
+  if (filters.search)        p.set("search",        filters.search);
+  if (filters.status)        p.set("status",        filters.status);
+  if (filters.source)        p.set("source",        filters.source);
+  if (filters.counsellorId)  p.set("counsellorId",  filters.counsellorId);
+  if (filters.allocation)    p.set("allocation",    filters.allocation);
+  if (filters.subAgentId)    p.set("subAgentId",    filters.subAgentId);
+  if (filters.qualification) p.set("qualification", filters.qualification);
+  if (filters.ielts)         p.set("ielts",         filters.ielts);
+  if (filters.from)          p.set("from",          filters.from);
+  if (filters.to)            p.set("to",            filters.to);
   p.set("page", String(filters.page));
   for (const [k, v] of Object.entries(extra)) p.set(k, v);
   return p;
@@ -372,6 +378,8 @@ export default function LeadsClient({
     filters.counsellorId !== "" ||
     filters.allocation !== "" ||
     filters.subAgentId !== "" ||
+    filters.qualification !== "" ||
+    filters.ielts !== "" ||
     filters.from !== "" ||
     filters.to !== "";
 
@@ -578,6 +586,22 @@ export default function LeadsClient({
               ))}
             </Select>
           )}
+
+          {/* Academic Qualification */}
+          <Select value={filters.qualification} onChange={(v) => updateFilter("qualification", v)} placeholder="All Qualifications">
+            <option value="SSC">SSC</option>
+            <option value="HSC">HSC</option>
+            <option value="Diploma">Diploma</option>
+            <option value="Bachelor's">Bachelor&apos;s</option>
+            <option value="Master's">Master&apos;s</option>
+            <option value="Others">Others</option>
+          </Select>
+
+          {/* IELTS */}
+          <Select value={filters.ielts} onChange={(v) => updateFilter("ielts", v)} placeholder="IELTS">
+            <option value="yes">Has IELTS</option>
+            <option value="no">No IELTS</option>
+          </Select>
 
           {/* Date range */}
           <div className="flex items-center gap-1.5">

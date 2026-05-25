@@ -63,6 +63,13 @@ function buildWhere(roleName: string, userId: string, p: URLSearchParams, branch
   const subAgentId = p.get("subAgentId");
   if (subAgentId) and.push({ subAgentId });
 
+  const qualification = p.get("qualification");
+  if (qualification) and.push({ lastAcademicQualification: qualification });
+
+  const ielts = p.get("ielts");
+  if (ielts === "yes") and.push({ hasIelts: true });
+  if (ielts === "no")  and.push({ hasIelts: false });
+
   const from = p.get("from");
   if (from) and.push({ createdAt: { gte: new Date(from) } });
 
@@ -85,8 +92,11 @@ const LEAD_SELECT = {
   nationality: true,
   source: true,
   status: true,
+  score: true,
   createdAt: true,
   notes: true,
+  lastAcademicQualification: true,
+  hasIelts: true,
   assignedCounsellor: { select: { id: true, name: true } },
   subAgent: { select: { id: true, agencyName: true } },
 } as const;
@@ -121,13 +131,15 @@ export async function GET(req: NextRequest) {
         take: 5000,
       });
 
-      const header = ["Name", "Email", "Phone", "Nationality", "Source", "Counsellor", "Sub-Agent", "Status", "Date Added"];
+      const header = ["Name", "Email", "Phone", "Nationality", "Source", "Qualification", "Has IELTS", "Counsellor", "Sub-Agent", "Status", "Date Added"];
       const rows = leads.map((l) => [
         `${l.firstName} ${l.lastName}`,
         l.email ?? "",
         l.phone ?? "",
         l.nationality ?? "",
         l.source,
+        l.lastAcademicQualification ?? "",
+        l.hasIelts === true ? "Yes" : l.hasIelts === false ? "No" : "",
         l.assignedCounsellor?.name ?? "Unassigned",
         l.subAgent?.agencyName ?? "",
         l.status,

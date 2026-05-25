@@ -692,6 +692,7 @@ model Lead {
   interestedLevel           String?
   notes                     String?
   chatTranscript            Json?
+  customFields              Json?
   campaign                  String?
   score                     Int        @default(0)
   lastAcademicQualification String?

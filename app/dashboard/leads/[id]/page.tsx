@@ -40,10 +40,12 @@ export default async function LeadDetailPage({
     redirect("/dashboard/leads");
   }
 
-  // Convert Dates to strings for client component
+  // Convert Dates and Decimal values to strings for client component
   const serializedLead = {
     ...lead,
-    createdAt: lead.createdAt.toISOString(),
+    createdAt:    lead.createdAt.toISOString(),
+    ieltsScore:   lead.ieltsScore?.toString() ?? null,
+    customFields: (lead.customFields ?? null) as Record<string, string> | null,
     communications: lead.communications.map(c => ({
       ...c,
       createdAt: c.createdAt.toISOString(),
