@@ -110,11 +110,20 @@ export async function upsertLeadFromFieldData(
   const ieltsScore    = parseIeltsScore(findOneOf(fieldData, IELTS_SCORE_FIELDS));
   const customFields  = buildCustomFields(fieldData);
 
-  if (!email) return { created: false, leadId: "" };
-  const normalizedEmail = email.toLowerCase();
+  // Require at least a name and phone; email is optional
+  if (!firstName && !fullName) return { created: false, leadId: "" };
+  if (!phone) return { created: false, leadId: "" };
 
-  const existing = await db.lead.findFirst({ where: { email: normalizedEmail }, select: { id: true } });
-  if (existing) return { created: false, leadId: existing.id };
+  const normalizedEmail = email ? email.toLowerCase() : null;
+
+  // Dedup by email if present, otherwise by phone
+  if (normalizedEmail) {
+    const existing = await db.lead.findFirst({ where: { email: normalizedEmail }, select: { id: true } });
+    if (existing) return { created: false, leadId: existing.id };
+  } else {
+    const existing = await db.lead.findFirst({ where: { phone }, select: { id: true } });
+    if (existing) return { created: false, leadId: existing.id };
+  }
 
   const counsellor = await getNextCounsellor();
   const subAgentId = await resolveSubAgentId(subAgentHint);
