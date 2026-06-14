@@ -1,9 +1,10 @@
 import { db } from "@/lib/db";
 
-// Generates a unique 10-digit student number (1000000000 – 9999999999)
+// Prisma Int maps to a 32-bit signed integer, so keep values <= 2147483647.
+// We use 9 digits to stay safely in range while keeping IDs human-friendly.
 export async function generateStudentNumber(): Promise<number> {
-  const min = 1_000_000_000;
-  const max = 9_999_999_999;
+  const min = 100_000_000;
+  const max = 999_999_999;
   for (let attempt = 0; attempt < 20; attempt++) {
     const n = Math.floor(Math.random() * (max - min + 1)) + min;
     const exists = await db.student.findUnique({ where: { studentNumber: n }, select: { id: true } });

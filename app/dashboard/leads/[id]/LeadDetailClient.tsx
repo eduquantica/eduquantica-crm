@@ -143,7 +143,10 @@ export default function LeadDetailClient({
   const canDelete = canDeleteLead ?? ["ADMIN"].includes(userRole);
   const canEdit = userRole === "ADMIN" || userRole === "MANAGER";
   const canChangeCounsellor = userRole === "ADMIN" || userRole === "MANAGER";
-  const canConvert = userRole === "ADMIN" || userRole === "MANAGER";
+  const canConvert =
+    userRole === "ADMIN"
+    || userRole === "MANAGER"
+    || (userRole === "COUNSELLOR" && lead.assignedCounsellorId === userId);
 
   async function handleEditSubmit(e: React.FormEvent) {
     e.preventDefault();

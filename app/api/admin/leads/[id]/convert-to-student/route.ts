@@ -16,8 +16,10 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
     }
 
-    // Only Admin and Manager can convert
-    if (session.user.roleName !== "ADMIN" && session.user.roleName !== "MANAGER" && session.user.roleName !== "ADMIN") {
+    const roleName = session.user.roleName;
+    const isPrivileged = roleName === "ADMIN" || roleName === "MANAGER";
+    const isCounsellor = roleName === "COUNSELLOR";
+    if (!isPrivileged && !isCounsellor) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -29,6 +31,10 @@ export async function POST(
 
     if (!lead) {
       return NextResponse.json({ error: "Lead not found" }, { status: 404 });
+    }
+
+    if (isCounsellor && lead.assignedCounsellorId !== session.user.id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     if (!lead.email) {
@@ -85,7 +91,7 @@ export async function POST(
         email: lead.email.toLowerCase(),
         phone: lead.phone || null,
         nationality: lead.nationality || null,
-        assignedCounsellorId: lead.assignedCounsellorId || null,
+        assignedCounsellorId: lead.assignedCounsellorId || (isCounsellor ? session.user.id : null),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any,
     });

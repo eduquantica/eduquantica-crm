@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
@@ -35,6 +35,7 @@ export default function AddStudentPage() {
 
   const { data: counsellorsData } = useQuery({
     queryKey: ["counsellors"],
+    enabled: user.roleName !== "COUNSELLOR",
     queryFn: async () => {
       const res = await fetch("/api/admin/settings/users?role=COUNSELLOR");
       if (!res.ok) throw new Error("Failed to fetch counsellors");
@@ -54,6 +55,14 @@ export default function AddStudentPage() {
   });
   const subAgents: Array<{ id: string; agencyName: string }> =
     subAgentsData?.data?.subAgents || [];
+
+  useEffect(() => {
+    if (user.roleName !== "COUNSELLOR" || !user.id) return;
+    setFormData((prev) => {
+      if (prev.assignedCounsellorId) return prev;
+      return { ...prev, assignedCounsellorId: user.id };
+    });
+  }, [user.id, user.roleName]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -81,7 +90,8 @@ export default function AddStudentPage() {
           phone: formData.phone || null,
           nationality: formData.nationality || null,
           countryOfResidence: formData.address || null,
-          assignedCounsellorId: formData.assignedCounsellorId || null,
+          assignedCounsellorId:
+            user.roleName === "COUNSELLOR" ? (user.id || null) : (formData.assignedCounsellorId || null),
           subAgentId: formData.subAgentId || null,
           dateOfBirth: formData.dateOfBirth || null,
           passportNumber: formData.passportNumber || null,
@@ -223,15 +233,24 @@ export default function AddStudentPage() {
               <select
                 value={formData.assignedCounsellorId}
                 onChange={(e) => setFormData({ ...formData, assignedCounsellorId: e.target.value })}
+                disabled={user.roleName === "COUNSELLOR"}
                 className="w-full px-3 py-2 border rounded-lg"
               >
                 <option value="">Unassigned</option>
+                {user.roleName === "COUNSELLOR" && user.id && (
+                  <option value={user.id}>Me</option>
+                )}
                 {counsellors.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
                   </option>
                 ))}
               </select>
+              {user.roleName === "COUNSELLOR" && (
+                <p className="text-xs text-slate-500 mt-1">
+                  New students are automatically assigned to your account.
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
