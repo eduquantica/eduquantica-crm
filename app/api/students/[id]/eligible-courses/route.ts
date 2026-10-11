@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 function canStaff(roleName?: string): boolean {
-  return !!roleName && roleName !== "STUDENT" && roleName !== "ADMIN" && roleName !== "SUB_AGENT" && roleName !== "ADMIN";
+  return !!roleName && roleName !== "STUDENT" && roleName !== "SUB_AGENT" && roleName !== "SUB_AGENT_COUNSELLOR";
 }
 
 export async function GET(

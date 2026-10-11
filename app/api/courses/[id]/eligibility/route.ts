@@ -6,7 +6,7 @@ import { checkEligibility } from "@/lib/eligibility/checkEligibility";
 import { statusScore, toMatchStatus } from "@/lib/eligibility/presentation";
 
 function canStaff(roleName?: string): boolean {
-  return !!roleName && roleName !== "STUDENT" && roleName !== "ADMIN" && roleName !== "SUB_AGENT" && roleName !== "ADMIN";
+  return !!roleName && roleName !== "STUDENT" && roleName !== "SUB_AGENT" && roleName !== "SUB_AGENT_COUNSELLOR";
 }
 
 export async function GET(
