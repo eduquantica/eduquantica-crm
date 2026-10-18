@@ -18,6 +18,20 @@ function portalPath(roleName: string, subAgentApproved?: boolean): string {
   return "/dashboard";
 }
 
+// Website "Apply now" for a scholarship: /register?scholarship=<id>. The id rides in
+// this cookie through sign-up or log-in, then the student lands on
+// /student/scholarships?interest=<id> (see lib/scholarship-website.ts).
+const SCHOLARSHIP_COOKIE = "eq_scholarship";
+const SCHOLARSHIP_ID = /^[a-z0-9]{10,40}$/i;
+
+function scholarshipInterestRedirect(request: NextRequest, scholarshipId: string) {
+  const url = new URL("/student/scholarships", request.url);
+  url.searchParams.set("interest", scholarshipId);
+  const response = NextResponse.redirect(url);
+  response.cookies.set(SCHOLARSHIP_COOKIE, "", { path: "/", maxAge: 0 });
+  return response;
+}
+
 // ─── Middleware ───────────────────────────────────────────────────────────────
 
 export async function middleware(request: NextRequest) {
@@ -63,6 +77,23 @@ export async function middleware(request: NextRequest) {
 
   // ── /register ───────────────────────────────────────────────────────────────
   if (pathname === "/register") {
+    const scholarshipId = request.nextUrl.searchParams.get("scholarship")?.trim() ?? "";
+    if (SCHOLARSHIP_ID.test(scholarshipId)) {
+      if (isAuthenticated && roleName === "STUDENT") {
+        return scholarshipInterestRedirect(request, scholarshipId);
+      }
+      if (!isAuthenticated) {
+        const response = NextResponse.next();
+        response.cookies.set(SCHOLARSHIP_COOKIE, scholarshipId, {
+          path: "/",
+          maxAge: 60 * 60 * 24 * 7,
+          sameSite: "lax",
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+        });
+        return response;
+      }
+    }
     // Logged-in users should not access register
     if (isAuthenticated && roleName) {
       return NextResponse.redirect(
@@ -170,6 +201,16 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(
         new URL(portalPath(roleName!, subAgentApproved), request.url),
       );
+    }
+    // Scholarship chosen on the website before signing up / logging in
+    const pendingScholarship = request.cookies.get(SCHOLARSHIP_COOKIE)?.value ?? "";
+    if (SCHOLARSHIP_ID.test(pendingScholarship)) {
+      if (pathname === "/student/scholarships" && request.nextUrl.searchParams.get("interest") === pendingScholarship) {
+        const response = NextResponse.next();
+        response.cookies.set(SCHOLARSHIP_COOKIE, "", { path: "/", maxAge: 0 });
+        return response;
+      }
+      return scholarshipInterestRedirect(request, pendingScholarship);
     }
     return NextResponse.next();
   }
