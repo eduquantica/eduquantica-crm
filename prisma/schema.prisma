@@ -849,6 +849,8 @@ model University {
   isActive               Boolean   @default(true)
   contactPerson          String?
   contactEmail           String?
+  // Public website course search (www.eduquantica.com/courses)
+  showOnWebsite          Boolean   @default(true)
 
   // Visa info
   postStudyWorkVisa      String?

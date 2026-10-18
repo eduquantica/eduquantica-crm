@@ -18,17 +18,18 @@ function portalPath(roleName: string, subAgentApproved?: boolean): string {
   return "/dashboard";
 }
 
-// Website "Apply now" for a scholarship: /register?scholarship=<id>. The id rides in
-// this cookie through sign-up or log-in, then the student lands on
-// /student/scholarships?interest=<id> (see lib/scholarship-website.ts).
-const SCHOLARSHIP_COOKIE = "eq_scholarship";
-const SCHOLARSHIP_ID = /^[a-z0-9]{10,40}$/i;
+// Website "Apply now": /register?scholarship=<id> or /register?course=<id>. The id
+// rides in a cookie through sign-up or log-in, then the student lands on the page
+// that records their interest (lib/scholarship-website.ts, lib/course-website.ts).
+const WEBSITE_ID = /^[a-z0-9]{10,40}$/i;
+const WEBSITE_INTERESTS = [
+  { param: "scholarship", cookie: "eq_scholarship", target: (id: string) => `/student/scholarships?interest=${id}` },
+  { param: "course", cookie: "eq_course", target: (id: string) => `/student/courses/${id}?interest=1` },
+] as const;
 
-function scholarshipInterestRedirect(request: NextRequest, scholarshipId: string) {
-  const url = new URL("/student/scholarships", request.url);
-  url.searchParams.set("interest", scholarshipId);
-  const response = NextResponse.redirect(url);
-  response.cookies.set(SCHOLARSHIP_COOKIE, "", { path: "/", maxAge: 0 });
+function websiteInterestRedirect(request: NextRequest, cookie: string, target: string) {
+  const response = NextResponse.redirect(new URL(target, request.url));
+  response.cookies.set(cookie, "", { path: "/", maxAge: 0 });
   return response;
 }
 
@@ -77,14 +78,15 @@ export async function middleware(request: NextRequest) {
 
   // ── /register ───────────────────────────────────────────────────────────────
   if (pathname === "/register") {
-    const scholarshipId = request.nextUrl.searchParams.get("scholarship")?.trim() ?? "";
-    if (SCHOLARSHIP_ID.test(scholarshipId)) {
+    for (const interest of WEBSITE_INTERESTS) {
+      const id = request.nextUrl.searchParams.get(interest.param)?.trim() ?? "";
+      if (!WEBSITE_ID.test(id)) continue;
       if (isAuthenticated && roleName === "STUDENT") {
-        return scholarshipInterestRedirect(request, scholarshipId);
+        return websiteInterestRedirect(request, interest.cookie, interest.target(id));
       }
       if (!isAuthenticated) {
         const response = NextResponse.next();
-        response.cookies.set(SCHOLARSHIP_COOKIE, scholarshipId, {
+        response.cookies.set(interest.cookie, id, {
           path: "/",
           maxAge: 60 * 60 * 24 * 7,
           sameSite: "lax",
@@ -202,15 +204,20 @@ export async function middleware(request: NextRequest) {
         new URL(portalPath(roleName!, subAgentApproved), request.url),
       );
     }
-    // Scholarship chosen on the website before signing up / logging in
-    const pendingScholarship = request.cookies.get(SCHOLARSHIP_COOKIE)?.value ?? "";
-    if (SCHOLARSHIP_ID.test(pendingScholarship)) {
-      if (pathname === "/student/scholarships" && request.nextUrl.searchParams.get("interest") === pendingScholarship) {
+    // Scholarship or course chosen on the website before signing up / logging in
+    for (const interest of WEBSITE_INTERESTS) {
+      const id = request.cookies.get(interest.cookie)?.value ?? "";
+      if (!WEBSITE_ID.test(id)) continue;
+      const target = new URL(interest.target(id), request.url);
+      const arrived =
+        pathname === target.pathname &&
+        Array.from(target.searchParams.entries()).every(([key, value]) => request.nextUrl.searchParams.get(key) === value);
+      if (arrived) {
         const response = NextResponse.next();
-        response.cookies.set(SCHOLARSHIP_COOKIE, "", { path: "/", maxAge: 0 });
+        response.cookies.set(interest.cookie, "", { path: "/", maxAge: 0 });
         return response;
       }
-      return scholarshipInterestRedirect(request, pendingScholarship);
+      return websiteInterestRedirect(request, interest.cookie, interest.target(id));
     }
     return NextResponse.next();
   }

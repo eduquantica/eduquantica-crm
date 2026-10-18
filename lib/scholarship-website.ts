@@ -25,7 +25,7 @@ const COURSE_LEVEL_TO_PROGRAMME: Record<string, string> = {
 
 export async function getPublicScholarships() {
   const rows = await db.scholarship.findMany({
-    where: { isActive: true, showOnWebsite: true, university: { isActive: true } },
+    where: { isActive: true, showOnWebsite: true, university: { isActive: true, showOnWebsite: true } },
     select: {
       id: true,
       name: true,
