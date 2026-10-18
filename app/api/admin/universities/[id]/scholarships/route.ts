@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
+import { ProgrammeLevel } from "@prisma/client";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -29,6 +30,11 @@ const schema = z.object({
   applicationProcess: z.string().nullable().optional(),
   externalUrl: z.string().url().nullable().optional(),
   isActive: z.boolean().default(true),
+  amountMax: z.number().positive().nullable().optional(),
+  openDate: z.string().nullable().optional(),
+  studyLevels: z.array(z.nativeEnum(ProgrammeLevel)).default([]),
+  fieldsOfStudy: z.array(z.string()).default([]),
+  showOnWebsite: z.boolean().default(true),
 });
 
 export async function GET(
@@ -132,6 +138,11 @@ export async function POST(
       applicationProcess: payload.applicationProcess || null,
       externalUrl: payload.externalUrl || null,
       isActive: payload.isActive,
+      amountMax: payload.amountMax ?? null,
+      openDate: payload.openDate ? new Date(payload.openDate) : null,
+      studyLevels: payload.studyLevels,
+      fieldsOfStudy: payload.fieldsOfStudy,
+      showOnWebsite: payload.showOnWebsite,
       currency: university.currency,
     },
     include: {

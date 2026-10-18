@@ -6,6 +6,7 @@ import { ArrowLeft, ExternalLink, MapPin, Trophy, Calendar } from "lucide-react"
 import Image from "next/image";
 import UniversityScrapeManager from "@/components/UniversityScrapeManager";
 import CurrencyDisplay from "@/components/CurrencyDisplay";
+import { SCHOLARSHIP_STUDY_LEVELS, type ScholarshipStudyLevel } from "@/lib/scholarship-levels";
 
 interface Course {
   id: string;
@@ -34,6 +35,11 @@ interface Scholarship {
   course: { id: string; name: string } | null;
   _count?: { applications: number };
   isActive: boolean;
+  amountMax: number | null;
+  openDate: string | null;
+  studyLevels: string[];
+  fieldsOfStudy: string[];
+  showOnWebsite: boolean;
 }
 
 interface CommissionAgreement {
@@ -120,6 +126,11 @@ export default function UniversityDetailClient({ universityId }: UniversityDetai
     applicationProcess: "",
     externalUrl: "",
     isActive: true,
+    amountMax: "",
+    openDate: "",
+    studyLevels: [] as string[],
+    fieldsOfStudy: "",
+    showOnWebsite: true,
   });
 
   useEffect(() => {
@@ -182,6 +193,11 @@ export default function UniversityDetailClient({ universityId }: UniversityDetai
       applicationProcess: "",
       externalUrl: "",
       isActive: true,
+      amountMax: "",
+      openDate: "",
+      studyLevels: [],
+      fieldsOfStudy: "",
+      showOnWebsite: true,
     });
     setEditingScholarshipId(null);
   }
@@ -212,6 +228,14 @@ export default function UniversityDetailClient({ universityId }: UniversityDetai
       applicationProcess: scholarshipForm.applicationProcess.trim() || null,
       externalUrl: scholarshipForm.externalUrl.trim() || null,
       isActive: scholarshipForm.isActive,
+      amountMax: scholarshipForm.amountMax ? Number(scholarshipForm.amountMax) : null,
+      openDate: scholarshipForm.openDate ? new Date(`${scholarshipForm.openDate}T00:00:00.000Z`).toISOString() : null,
+      studyLevels: scholarshipForm.studyLevels as ScholarshipStudyLevel[],
+      fieldsOfStudy: scholarshipForm.fieldsOfStudy
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+      showOnWebsite: scholarshipForm.showOnWebsite,
     };
 
     setSavingScholarship(true);
@@ -258,6 +282,11 @@ export default function UniversityDetailClient({ universityId }: UniversityDetai
       applicationProcess: scholarship.applicationProcess || "",
       externalUrl: scholarship.externalUrl || "",
       isActive: scholarship.isActive,
+      amountMax: scholarship.amountMax != null ? String(scholarship.amountMax) : "",
+      openDate: scholarship.openDate ? String(scholarship.openDate).slice(0, 10) : "",
+      studyLevels: scholarship.studyLevels || [],
+      fieldsOfStudy: (scholarship.fieldsOfStudy || []).join(", "),
+      showOnWebsite: scholarship.showOnWebsite ?? true,
     });
     setActiveTab("scholarships");
   }
@@ -651,6 +680,17 @@ export default function UniversityDetailClient({ universityId }: UniversityDetai
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                     />
                   </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">Maximum Amount (for a range)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={scholarshipForm.amountMax}
+                      onChange={(e) => setScholarshipForm((prev) => ({ ...prev, amountMax: e.target.value }))}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
                   {scholarshipForm.amountType === "PERCENTAGE" && (
                     <div>
                       <label className="mb-1 block text-sm font-medium text-slate-700">Percentage Of</label>
@@ -667,6 +707,15 @@ export default function UniversityDetailClient({ universityId }: UniversityDetai
                       </select>
                     </div>
                   )}
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">Opening Date (website)</label>
+                    <input
+                      type="date"
+                      value={scholarshipForm.openDate}
+                      onChange={(e) => setScholarshipForm((prev) => ({ ...prev, openDate: e.target.value }))}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
                   <div>
                     <label className="mb-1 block text-sm font-medium text-slate-700">Deadline</label>
                     <input
@@ -735,6 +784,42 @@ export default function UniversityDetailClient({ universityId }: UniversityDetai
                     />
                   </div>
                   <div className="md:col-span-2">
+                    <p className="mb-1 block text-sm font-medium text-slate-700">
+                      Study Levels (website filter; tick none for all levels)
+                    </p>
+                    <div className="flex flex-wrap gap-3">
+                      {SCHOLARSHIP_STUDY_LEVELS.map((level) => (
+                        <label key={level.value} className="inline-flex items-center gap-2 text-sm text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={scholarshipForm.studyLevels.includes(level.value)}
+                            onChange={(e) =>
+                              setScholarshipForm((prev) => ({
+                                ...prev,
+                                studyLevels: e.target.checked
+                                  ? [...prev.studyLevels, level.value]
+                                  : prev.studyLevels.filter((value) => value !== level.value),
+                              }))
+                            }
+                            className="h-4 w-4"
+                          />
+                          {level.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Fields of Study (comma-separated; leave blank for all subjects)
+                    </label>
+                    <input
+                      value={scholarshipForm.fieldsOfStudy}
+                      onChange={(e) => setScholarshipForm((prev) => ({ ...prev, fieldsOfStudy: e.target.value }))}
+                      placeholder="e.g. Business, Computer Science, Nursing"
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
                     <label className="mb-1 block text-sm font-medium text-slate-700">External URL</label>
                     <input
                       value={scholarshipForm.externalUrl}
@@ -760,6 +845,15 @@ export default function UniversityDetailClient({ universityId }: UniversityDetai
                         className="h-4 w-4"
                       />
                       Active
+                    </label>
+                    <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={scholarshipForm.showOnWebsite}
+                        onChange={(e) => setScholarshipForm((prev) => ({ ...prev, showOnWebsite: e.target.checked }))}
+                        className="h-4 w-4"
+                      />
+                      Show on website scholarship search
                     </label>
                   </div>
                 </div>

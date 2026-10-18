@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
+import { ProgrammeLevel } from "@prisma/client";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -25,6 +26,11 @@ const schema = z.object({
   applicationProcess: z.string().nullable().optional(),
   externalUrl: z.string().url().nullable().optional(),
   isActive: z.boolean().optional(),
+  amountMax: z.number().positive().nullable().optional(),
+  openDate: z.string().nullable().optional(),
+  studyLevels: z.array(z.nativeEnum(ProgrammeLevel)).optional(),
+  fieldsOfStudy: z.array(z.string()).optional(),
+  showOnWebsite: z.boolean().optional(),
 });
 
 export async function PATCH(
@@ -69,6 +75,7 @@ export async function PATCH(
   const data = {
     ...payload,
     deadline: payload.deadline === undefined ? undefined : payload.deadline ? new Date(payload.deadline) : null,
+    openDate: payload.openDate === undefined ? undefined : payload.openDate ? new Date(payload.openDate) : null,
     intakePeriod: payload.intakePeriod === undefined ? undefined : payload.intakePeriod || null,
     applicationProcess: payload.applicationProcess === undefined ? undefined : payload.applicationProcess || null,
     externalUrl: payload.externalUrl === undefined ? undefined : payload.externalUrl || null,

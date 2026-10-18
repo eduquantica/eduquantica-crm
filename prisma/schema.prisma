@@ -412,6 +412,9 @@ enum ProgrammeLevel {
   MBA
   PHD
   ALL
+  MRES
+  MPHIL
+  DBA
 }
 
 enum ScholarshipAmountType {
@@ -2547,6 +2550,13 @@ model Scholarship {
   isActive                Boolean               @default(true)
   applicationProcess      String?
   externalUrl             String?
+  // Filters for the public website scholarship search (www.eduquantica.com/scholarships).
+  // These columns were first added straight to the database (scholarship uploader); now tracked here.
+  amountMax               Float?                // top of a range ("£2,000 to £5,000"); null = single amount
+  openDate                DateTime?             // when applications open; null = open now
+  studyLevels             ProgrammeLevel[]      @default([]) // empty = all levels
+  fieldsOfStudy           String[]              @default([]) // empty = all subjects
+  showOnWebsite           Boolean               @default(true)
   createdAt               DateTime              @default(now())
   updatedAt               DateTime              @updatedAt
 

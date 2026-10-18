@@ -25,15 +25,34 @@ type ScholarshipTrackerRow = {
   };
 };
 
+type WebsiteInterest = {
+  name: string;
+  university: string;
+  course: { id: string; name: string } | null;
+};
+
 export default function StudentScholarshipsTrackerPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<ScholarshipTrackerRow[]>([]);
+  const [interest, setInterest] = useState<WebsiteInterest | null>(null);
 
   useEffect(() => {
     const load = async () => {
       try {
         setLoading(true);
+        // Arrived from "Apply now" on the website scholarship search: add it to the tracker first.
+        const interestId = new URLSearchParams(window.location.search).get("interest");
+        if (interestId) {
+          const added = await fetch("/api/student/scholarships/interest", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ scholarshipId: interestId }),
+          });
+          const addedJson = await added.json().catch(() => ({}));
+          if (added.ok && addedJson.data?.scholarship) setInterest(addedJson.data.scholarship);
+          window.history.replaceState(null, "", "/student/scholarships");
+        }
         const res = await fetch("/api/student/scholarships", { cache: "no-store" });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || "Failed to load scholarship tracker");
@@ -60,6 +79,25 @@ export default function StudentScholarshipsTrackerPage() {
           Find Scholarships
         </Link>
       </div>
+
+      {interest && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-sm text-slate-800">
+          <p className="font-semibold text-slate-900">
+            {interest.name} ({interest.university}) has been added to your scholarships.
+          </p>
+          <ol className="mt-2 list-decimal space-y-1 pl-5">
+            <li>Check that you meet the eligibility requirements for the course and the scholarship.</li>
+            <li>Apply for {interest.course ? interest.course.name : `a course at ${interest.university}`} first.</li>
+            <li>Then apply for the scholarship here. We have also emailed you these steps.</li>
+          </ol>
+          <Link
+            href={interest.course ? `/student/courses/${interest.course.id}` : "/student/courses"}
+            className="mt-3 inline-block rounded bg-[#12264a] px-3 py-2 font-medium text-white hover:bg-[#0f1f3b]"
+          >
+            Check eligibility and apply for the course
+          </Link>
+        </div>
+      )}
 
       {loading ? (
         <div className="rounded-lg border border-slate-200 bg-white p-5 text-sm text-slate-600">Loading tracker...</div>

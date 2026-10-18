@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
@@ -30,6 +30,12 @@ export default function RegisterPage() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // Came from "Apply now" on the website scholarship search (see middleware.ts)
+  const [fromScholarship, setFromScholarship] = useState(false);
+
+  useEffect(() => {
+    setFromScholarship(new URLSearchParams(window.location.search).has("scholarship"));
+  }, []);
 
   function validate() {
     const next: FormErrors = {};
@@ -104,6 +110,13 @@ export default function RegisterPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4 px-6 py-6" noValidate>
           {submitError && <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{submitError}</div>}
+
+          {fromScholarship && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-slate-800">
+              Create your account to apply for this scholarship. We will add it to your profile and email you the next
+              steps. Already have an account? Log in and it will be added for you.
+            </div>
+          )}
 
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">Full name</label>
