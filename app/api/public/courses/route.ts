@@ -4,7 +4,7 @@ import { searchPublicCourses } from "@/lib/course-website";
 /**
  * Read-only course search for the public website. Query: q, country, level,
  * subject, university, mode, intake, maxFee, sort (name | fee_asc | fee_desc),
- * page, pageSize (max 48). No personal data. Cached at the edge for 10 minutes.
+ * page, pageSize (max 48). No personal data. Not cached here: the website caches it and is told to refresh on every save (lib/website-revalidate.ts).
  */
 export const dynamic = "force-dynamic";
 
@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     const params = Object.fromEntries(req.nextUrl.searchParams.entries());
     const result = await searchPublicCourses(params);
     return NextResponse.json(result, {
-      headers: { "Cache-Control": "public, s-maxage=600, stale-while-revalidate=3600" },
+      headers: { "Cache-Control": "no-store" },
     });
   } catch (error) {
     console.error("[public/courses]", error);

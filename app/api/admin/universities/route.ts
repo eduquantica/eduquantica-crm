@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
+import { notifyWebsite } from "@/lib/website-revalidate";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function staffGuard(session: any) {
@@ -162,6 +163,7 @@ export async function POST(request: Request) {
       console.error("Failed to log activity", err);
     }
 
+    await notifyWebsite("university created");
     return NextResponse.json({ data: { university } }, { status: 201 });
   } catch (e) {
     console.error("[/api/admin/universities POST]", e);

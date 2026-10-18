@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
 import type { Prisma, CourseLevel } from "@prisma/client";
+import { notifyWebsite } from "@/lib/website-revalidate";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function staffGuard(session: any) {
@@ -302,6 +303,7 @@ export async function POST(request: Request) {
       console.error("Failed to log activity", err);
     }
 
+    await notifyWebsite("course created");
     return NextResponse.json({ data: { course } }, { status: 201 });
   } catch (e) {
     console.error("[/api/admin/courses POST]", e);

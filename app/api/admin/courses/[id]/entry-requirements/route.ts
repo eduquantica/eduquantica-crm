@@ -6,6 +6,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { EligibilityMatcher } from "@/lib/eligibility-matcher";
 import { NotificationService } from "@/lib/notifications";
+import { notifyWebsite } from "@/lib/website-revalidate";
 
 function canStaff(roleName?: string): boolean {
   return !!roleName && roleName !== "STUDENT" && roleName !== "SUB_AGENT" && roleName !== "SUB_AGENT_COUNSELLOR";
@@ -219,6 +220,7 @@ export async function PATCH(
       ),
     );
 
+    await notifyWebsite("entry requirements updated");
     return NextResponse.json({
       data: {
         courseId: params.id,

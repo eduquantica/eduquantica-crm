@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { notifyWebsite } from "@/lib/website-revalidate";
 
 function staffGuard(session: unknown) {
   if (!session) return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
@@ -117,6 +118,7 @@ export async function POST(request: Request) {
       console.error("failed logging import excel", err);
     }
 
+    await notifyWebsite("universities imported");
     return NextResponse.json({ data: { universityId: uId, created: createdCount, updated: updatedCount } });
   } catch (e) {
     console.error("[/api/admin/universities/import-excel POST]", e);
