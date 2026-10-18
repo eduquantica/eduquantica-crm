@@ -81,6 +81,7 @@ interface University {
   applicationFee: number | null;
   currency: string;
   isActive: boolean;
+  showOnWebsite: boolean;
   contactPerson: string | null;
   contactEmail: string | null;
   campusPhotos: string[];
@@ -105,6 +106,7 @@ export default function UniversityDetailClient({ universityId }: UniversityDetai
   const [agreementEndDate, setAgreementEndDate] = useState("");
   const [agreementNotes, setAgreementNotes] = useState("");
   const [savingAgreement, setSavingAgreement] = useState(false);
+  const [savingWebsite, setSavingWebsite] = useState(false);
   const [scholarships, setScholarships] = useState<Scholarship[]>([]);
   const [scholarshipError, setScholarshipError] = useState<string | null>(null);
   const [savingScholarship, setSavingScholarship] = useState(false);
@@ -174,6 +176,22 @@ export default function UniversityDetailClient({ universityId }: UniversityDetai
     if (activeTab !== "scholarships") return;
     void fetchScholarships();
   }, [activeTab, fetchScholarships]);
+
+  // Show or hide this university (and its courses) on the public website course search.
+  async function toggleWebsite() {
+    if (!university) return;
+    setSavingWebsite(true);
+    try {
+      const res = await fetch(`/api/admin/universities/${universityId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ showOnWebsite: !university.showOnWebsite }),
+      });
+      if (res.ok) setUniversity({ ...university, showOnWebsite: !university.showOnWebsite });
+    } finally {
+      setSavingWebsite(false);
+    }
+  }
 
   function resetScholarshipForm() {
     setScholarshipForm({
@@ -431,6 +449,19 @@ export default function UniversityDetailClient({ universityId }: UniversityDetai
           >
             {university.isActive ? "Active" : "Inactive"}
           </span>
+          <button
+            type="button"
+            onClick={toggleWebsite}
+            disabled={savingWebsite}
+            title="Show or hide this university and its courses on www.eduquantica.com"
+            className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap border ${
+              university.showOnWebsite
+                ? "border-blue-200 bg-blue-50 text-blue-800"
+                : "border-slate-300 bg-white text-slate-600"
+            }`}
+          >
+            {university.showOnWebsite ? "Shown on website" : "Hidden from website"}
+          </button>
         </div>
       </div>
 

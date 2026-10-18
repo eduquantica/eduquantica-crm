@@ -151,6 +151,21 @@ export default function StudentCourseDetailPage() {
     try {
       setLoading(true);
 
+      // Arrived from "Apply now" on the website course search: save it to the wishlist first.
+      if (new URLSearchParams(window.location.search).get("interest") === "1") {
+        const added = await fetch("/api/student/courses/interest", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ courseId }),
+        });
+        if (added.ok) {
+          setActionMessage(
+            "This course has been saved to your wishlist and we have emailed you the next steps. Check your eligibility below, then choose Apply Now.",
+          );
+        }
+        window.history.replaceState(null, "", `/student/courses/${courseId}`);
+      }
+
       const detailRes = await fetch(`/api/student/courses/${courseId}`, { cache: "no-store" });
       const detailJson = await detailRes.json() as DetailResponse | { error?: string };
       if (!detailRes.ok || !detailJson || !("data" in detailJson)) {

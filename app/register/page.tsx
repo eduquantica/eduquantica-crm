@@ -30,11 +30,12 @@ export default function RegisterPage() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  // Came from "Apply now" on the website scholarship search (see middleware.ts)
-  const [fromScholarship, setFromScholarship] = useState(false);
+  // Came from "Apply now" on the website scholarship or course search (see middleware.ts)
+  const [fromWebsite, setFromWebsite] = useState<"scholarship" | "course" | null>(null);
 
   useEffect(() => {
-    setFromScholarship(new URLSearchParams(window.location.search).has("scholarship"));
+    const search = new URLSearchParams(window.location.search);
+    setFromWebsite(search.has("scholarship") ? "scholarship" : search.has("course") ? "course" : null);
   }, []);
 
   function validate() {
@@ -111,9 +112,9 @@ export default function RegisterPage() {
         <form onSubmit={handleSubmit} className="space-y-4 px-6 py-6" noValidate>
           {submitError && <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{submitError}</div>}
 
-          {fromScholarship && (
+          {fromWebsite && (
             <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-slate-800">
-              Create your account to apply for this scholarship. We will add it to your profile and email you the next
+              Create your account to apply for this {fromWebsite}. We will add it to your profile and email you the next
               steps. Already have an account? Log in and it will be added for you.
             </div>
           )}

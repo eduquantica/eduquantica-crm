@@ -32,6 +32,7 @@ const updateUniversitySchema = z.object({
   logo: z.string().optional().nullable(),
   campusPhotos: z.array(z.string()).optional(),
   isActive: z.boolean().optional(),
+  showOnWebsite: z.boolean().optional(),
   postStudyWorkVisa: z.string().optional().nullable(),
   commissionAgreement: z
     .object({
@@ -67,6 +68,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
         applicationFee: true,
         currency: true,
         isActive: true,
+        showOnWebsite: true,
         contactPerson: true,
         contactEmail: true,
         campusPhotos: true,
@@ -158,6 +160,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
         applicationFee: true,
         currency: true,
         isActive: true,
+        showOnWebsite: true,
         contactPerson: true,
         contactEmail: true,
         campusPhotos: true,
