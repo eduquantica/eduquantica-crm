@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
+import { notifyWebsite } from "@/lib/website-revalidate";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function staffGuard(session: any) {
@@ -193,6 +194,7 @@ export async function PATCH(
       console.error("Failed to log activity", err);
     }
 
+    await notifyWebsite("course updated");
     return NextResponse.json({ data: { course } });
   } catch (e) {
     console.error("[/api/admin/courses/[id] PATCH]", e);

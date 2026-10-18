@@ -4,6 +4,7 @@ import { ProgrammeLevel } from "@prisma/client";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { notifyWebsite } from "@/lib/website-revalidate";
 
 function canManageScholarships(roleName?: string) {
   return roleName === "ADMIN" || roleName === "MANAGER" || roleName === "COUNSELLOR";
@@ -104,5 +105,6 @@ export async function PATCH(
     },
   });
 
+  await notifyWebsite("scholarship updated");
   return NextResponse.json({ data: scholarship });
 }

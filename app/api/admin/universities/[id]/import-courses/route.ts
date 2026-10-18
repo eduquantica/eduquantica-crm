@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
 import type { CourseTag } from "@prisma/client";
+import { notifyWebsite } from "@/lib/website-revalidate";
 
 function staffGuard(session: unknown) {
   if (!session) return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
@@ -119,6 +120,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       console.error("Failed to log activity", err);
     }
 
+    await notifyWebsite("courses imported");
     return NextResponse.json({ data: { imported, skipped } });
   } catch (e) {
     console.error("[/api/admin/universities/[id]/import-courses POST]", e);

@@ -10,7 +10,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     if (!course) return NextResponse.json({ error: "Course not found" }, { status: 404 });
     return NextResponse.json(
       { data: course },
-      { headers: { "Cache-Control": "public, s-maxage=600, stale-while-revalidate=3600" } },
+      { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
     console.error("[public/courses/id]", error);

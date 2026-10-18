@@ -3,7 +3,7 @@ import { getPublicScholarships } from "@/lib/scholarship-website";
 
 /**
  * Read-only list of active scholarships for the public website search.
- * No personal data. Cached at the edge for 10 minutes.
+ * No personal data. Not cached here: the website caches it and is told to refresh on every save (lib/website-revalidate.ts).
  */
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,7 @@ export async function GET() {
     const data = await getPublicScholarships();
     return NextResponse.json(
       { data, generatedAt: new Date().toISOString() },
-      { headers: { "Cache-Control": "public, s-maxage=600, stale-while-revalidate=3600" } },
+      { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
     console.error("[public/scholarships]", error);
