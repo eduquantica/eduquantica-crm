@@ -5,6 +5,7 @@
 
 import Fuse from "fuse.js";
 import { SubjectCategory } from "@prisma/client";
+import { fetchStoredFile } from "@/lib/stored-file";
 
 export type TranscriptOcrRow = {
   subjectName: string;
@@ -214,7 +215,7 @@ export async function scanTranscript(fileUrl: string, qualType: string): Promise
     return [];
   }
 
-  const res = await fetch(fileUrl);
+  const res = await fetchStoredFile(fileUrl);
   if (!res.ok) throw new Error(`Failed to fetch transcript file (${res.status})`);
   const bytes = Buffer.from(await res.arrayBuffer());
   const contentType = res.headers.get("content-type") || "";

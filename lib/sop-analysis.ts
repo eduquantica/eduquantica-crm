@@ -1,6 +1,7 @@
 import mammoth from "mammoth";
 import { PDFParse } from "pdf-parse";
 import { checkGrammar } from "@/lib/languagetool";
+import { fetchStoredFile } from "@/lib/stored-file";
 
 type AnalysisLevel = "Low" | "Medium" | "High";
 
@@ -161,7 +162,7 @@ export async function extractTextFromFileUrl(fileUrl: string): Promise<string> {
     return extractTextFromBuffer({ buffer, fileName, mimeType });
   }
 
-  const response = await fetch(fileUrl);
+  const response = await fetchStoredFile(fileUrl);
   if (!response.ok) {
     throw new Error(`Failed to fetch file for text extraction (${response.status}).`);
   }

@@ -1,12 +1,11 @@
 import { randomBytes } from "crypto";
-import fs from "fs/promises";
-import path from "path";
 import { getServerSession } from "next-auth/next";
 import { NextRequest, NextResponse } from "next/server";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { ServicePayStatus } from "@prisma/client";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
+import { storeBlobFile } from "@/lib/blob-storage";
 import { db } from "@/lib/db";
 import { NotificationService } from "@/lib/notifications";
 import { sendResendEmail } from "@/lib/resend";
@@ -26,16 +25,6 @@ const updateSchema = z.object({
 
 function canManage(roleName?: string) {
   return roleName === "ADMIN" || roleName === "MANAGER";
-}
-
-async function ensureInvoicesDir() {
-  const dir = path.join(process.cwd(), "storage", "uploads", "service-invoices");
-  await fs.mkdir(dir, { recursive: true });
-  return dir;
-}
-
-function safeName(input: string) {
-  return input.replace(/[^a-zA-Z0-9._-]/g, "_");
 }
 
 async function buildInvoicePdf(args: {
@@ -134,12 +123,7 @@ export async function PATCH(
         confirmedDate: confirmedAt,
       });
 
-      const dir = await ensureInvoicesDir();
-      const fileName = safeName(`${invoiceNumber}.pdf`);
-      const fullPath = path.join(dir, fileName);
-      await fs.writeFile(fullPath, Buffer.from(bytes));
-
-      const invoiceUrl = `/api/files/service-invoices/${encodeURIComponent(fileName)}`;
+      const invoiceUrl = await storeBlobFile(Buffer.from(bytes), `${invoiceNumber}.pdf`, "application/pdf", "service-invoices");
       const updated = await db.servicePayment.update({
         where: { id: payment.id },
         data: { invoiceNumber, invoiceUrl },

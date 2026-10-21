@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
+import { fetchStoredFile } from "@/lib/stored-file";
 
 export const maxDuration = 60;
 
@@ -42,7 +43,7 @@ async function extractLoanLetterDateWithAnthropic(fileUrl: string): Promise<Date
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return null;
 
-  const fileRes = await fetch(fileUrl, { cache: "no-store" });
+  const fileRes = await fetchStoredFile(fileUrl, { cache: "no-store" });
   if (!fileRes.ok) return null;
 
   const mimeType = fileRes.headers.get("content-type") || "application/octet-stream";

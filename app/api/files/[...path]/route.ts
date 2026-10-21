@@ -1,6 +1,8 @@
 import { readFile } from "fs/promises";
 import path from "path";
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth";
 
 const STORAGE_ROOT = path.resolve(process.cwd(), "storage");
 const STORAGE_UPLOADS_ROOT = path.resolve(process.cwd(), "storage", "uploads");
@@ -21,7 +23,7 @@ function mimeByExtension(filePath: string) {
 
 function resolveCandidatePath(root: string, relativePath: string) {
   const fullPath = path.resolve(root, relativePath);
-  if (!fullPath.startsWith(root)) return null;
+  if (fullPath !== root && !fullPath.startsWith(root + path.sep)) return null;
   return fullPath;
 }
 
@@ -29,6 +31,10 @@ export async function GET(
   request: Request,
   { params }: { params: { path: string[] } },
 ) {
+  // Middleware skips URLs ending in image extensions, so this route must check the session itself.
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const rawPath = (params.path || []).join("/").trim();
   if (!rawPath) {
     return NextResponse.json({ error: "File not found" }, { status: 404 });

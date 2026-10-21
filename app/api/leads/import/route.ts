@@ -24,7 +24,7 @@ type LeadImportRow = {
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
-  if (!session || (session.user.roleName !== "ADMIN" && session.user.roleName !== "MANAGER" && session.user.roleName !== "ADMIN")) {
+  if (!session || (session.user.roleName !== "ADMIN" && session.user.roleName !== "MANAGER")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 

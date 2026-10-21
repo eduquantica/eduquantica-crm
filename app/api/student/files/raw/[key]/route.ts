@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth";
 import { detectMimeType, readUploadByKey } from "@/lib/local-upload";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: { key: string } },
 ) {
+  // Middleware skips URLs ending in image extensions, so this route must check the session itself.
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const decodedKey = decodeURIComponent(params.key);
     const { bytes, key } = await readUploadByKey(decodedKey);

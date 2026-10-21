@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import { CheckCircle2, Loader2, Smartphone } from "lucide-react";
 import AppModal from "@/components/ui/AppModal";
+import { toApiFilesPath } from "@/lib/file-url";
 
 type SessionStatus = "PENDING" | "UPLOADING" | "COMPLETED" | "EXPIRED";
 
@@ -129,7 +130,8 @@ export default function QRCodeUploadModal({
         setStatus(json.status);
 
         if (json.status === "COMPLETED" && json.uploadedFileUrl && json.uploadedFileName) {
-          onCompleted?.({ fileUrl: json.uploadedFileUrl, fileName: json.uploadedFileName });
+          // Private blob URLs can't be fetched by the browser; go through the authenticated proxy.
+          onCompleted?.({ fileUrl: toApiFilesPath(json.uploadedFileUrl), fileName: json.uploadedFileName });
           setTimeout(() => onClose(), 1500);
         }
       } catch {

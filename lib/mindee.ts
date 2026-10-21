@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { fetchStoredFile } from "@/lib/stored-file";
 
 /**
  * OCR library — Claude vision is the primary engine.
@@ -85,7 +86,7 @@ function inferMediaType(fileUrl: string, contentType: string): ClaudeMediaType {
 }
 
 async function fetchAsBase64(fileUrl: string): Promise<{ base64: string; mediaType: ClaudeMediaType }> {
-  const res = await fetch(fileUrl);
+  const res = await fetchStoredFile(fileUrl);
   if (!res.ok) throw new Error(`Failed to fetch file: HTTP ${res.status}`);
   const bytes = Buffer.from(await res.arrayBuffer());
   const contentType = res.headers.get("content-type") || "";
