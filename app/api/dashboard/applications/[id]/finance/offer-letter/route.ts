@@ -8,6 +8,7 @@ export const maxDuration = 60;
 import { scanFinancialDoc, scanGenericDoc } from "@/lib/mindee";
 import { detectCurrency, extractOfferFields } from "@/lib/application-finance";
 import { saveToStudentDocument } from "@/lib/saveToStudentDocument";
+import { fetchStoredFile } from "@/lib/stored-file";
 
 const schema = z.object({
   fileName: z.string().min(1),
@@ -61,7 +62,7 @@ async function extractOfferWithAnthropic(fileUrl: string): Promise<AnthropicOffe
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return null;
 
-  const fileRes = await fetch(fileUrl, { cache: "no-store" });
+  const fileRes = await fetchStoredFile(fileUrl, { cache: "no-store" });
   if (!fileRes.ok) return null;
 
   const contentType = fileRes.headers.get("content-type") || "";

@@ -1,5 +1,6 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { isVercelBlobHost } from "@/lib/stored-file";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,8 @@ export async function GET(req: Request) {
   const url = searchParams.get("url") || "";
   const download = searchParams.get("download") === "1";
 
-  if (!url || !url.startsWith("https://")) {
+  // The blob token is sent with the request, so only Vercel Blob hosts may be fetched.
+  if (!isVercelBlobHost(url)) {
     return new Response("Invalid URL", { status: 400 });
   }
 

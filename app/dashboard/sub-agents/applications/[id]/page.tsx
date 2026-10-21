@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
 import { cn } from "@/lib/cn";
+import { toApiFilesDownloadPath, toApiFilesPath } from "@/lib/file-url";
 import { SubAgentApprovalStatus } from "@prisma/client";
 import {
   ArrowLeft,
@@ -96,8 +97,8 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
       ? `${agent.firstName} ${agent.lastName}`
       : agent.user.name ?? "—";
 
-  const docUrl = agent.registrationDocUrl;
-  const isExternalDoc = docUrl?.startsWith("http");
+  const docUrl = agent.registrationDocUrl ? toApiFilesPath(agent.registrationDocUrl) : null;
+  const docDownloadUrl = agent.registrationDocUrl ? toApiFilesDownloadPath(agent.registrationDocUrl) : null;
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -246,7 +247,7 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
             <span className="text-sm text-slate-600">Registration Document</span>
             <div className="ml-auto flex gap-2">
               <a
-                href={isExternalDoc ? docUrl : docUrl}
+                href={docUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition"
@@ -255,7 +256,7 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
                 Preview
               </a>
               <a
-                href={docUrl}
+                href={docDownloadUrl ?? docUrl}
                 download
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition"
               >

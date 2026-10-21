@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import AppModal from "@/components/ui/AppModal";
 import { COUNTRIES } from "@/lib/countries";
+import { toApiFilesPath } from "@/lib/file-url";
 
 type Listing = {
   id: string;
@@ -833,7 +834,7 @@ export default function StudentServicesClient({
                 {row.paymentStatus === "CONFIRMED" ? (
                   <div className="mt-2 space-y-2">
                     <div className="rounded-md bg-green-50 px-3 py-2 text-sm text-green-800">Payment confirmed. Pickup booked.</div>
-                    {row.invoiceUrl ? <a href={row.invoiceUrl} className="inline-block min-h-11 rounded border px-3 py-2 text-sm" target="_blank" rel="noreferrer">Download Invoice</a> : null}
+                    {row.invoiceUrl ? <a href={toApiFilesPath(row.invoiceUrl)} className="inline-block min-h-11 rounded border px-3 py-2 text-sm" target="_blank" rel="noreferrer">Download Invoice</a> : null}
                   </div>
                 ) : null}
                 {row.paymentStatus === "REJECTED" ? (

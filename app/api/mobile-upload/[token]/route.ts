@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { PDFConverter } from "@/lib/pdf-converter";
-import { getLocalUploadPath, storeUpload } from "@/lib/local-upload";
+import { storeBlobFile } from "@/lib/blob-storage";
 
 function buildNotice(converted: boolean, compressed: boolean) {
   if (converted && compressed) return "Image converted to PDF and compressed.";
@@ -136,9 +136,8 @@ export async function POST(
       };
     })();
 
-    const stored = await storeUpload(processed.file);
-    const fileUrl = new URL(getLocalUploadPath(stored.key), req.url).toString();
-    const fileName = stored.fileName;
+    const fileName = processed.file.name || file.name || "upload.pdf";
+    const fileUrl = await storeBlobFile(processed.file, fileName, processed.file.type || "application/octet-stream", "mobile-uploads");
 
     await db.mobileUploadSession.update({
       where: { id: mobileSession.id },

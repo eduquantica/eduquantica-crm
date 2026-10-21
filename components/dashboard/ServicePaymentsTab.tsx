@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toApiFilesPath } from "@/lib/file-url";
 
 type ServicePayStatus = "PENDING" | "PROOF_UPLOADED" | "CONFIRMED" | "REJECTED" | "REFUNDED" | "CANCELLED";
 
@@ -243,7 +244,7 @@ export default function ServicePaymentsTab({ currentUserId, onOpenPricingTab }: 
                           </button>
                           {row.invoiceUrl ? (
                             <a
-                              href={row.invoiceUrl}
+                              href={toApiFilesPath(row.invoiceUrl)}
                               target="_blank"
                               rel="noreferrer"
                               className="rounded-md border px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"

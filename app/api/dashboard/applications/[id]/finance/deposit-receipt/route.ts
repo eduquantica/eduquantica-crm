@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 export const maxDuration = 60;
 import { scanFinancialDoc } from "@/lib/mindee";
 import { saveToStudentDocument } from "@/lib/saveToStudentDocument";
+import { fetchStoredFile } from "@/lib/stored-file";
 
 const schema = z.object({
   fileName: z.string().min(1),
@@ -61,7 +62,7 @@ async function extractDepositWithAnthropic(fileUrl: string): Promise<AnthropicDe
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return null;
 
-  const fileRes = await fetch(fileUrl, { cache: "no-store" });
+  const fileRes = await fetchStoredFile(fileUrl, { cache: "no-store" });
   if (!fileRes.ok) return null;
 
   const contentType = fileRes.headers.get("content-type") || "";

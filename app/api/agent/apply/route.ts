@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { sendMail } from "@/lib/email";
-import { randomBytes } from "crypto";
-import path from "path";
-import fs from "fs/promises";
 import { NotificationService } from "@/lib/notifications";
+import { storeBlobFile } from "@/lib/blob-storage";
 
 type TxClient = Parameters<Parameters<typeof db.$transaction>[0]>[0];
 
@@ -31,12 +29,6 @@ function pickFile(formData: FormData, keys: string[]): File | null {
   return null;
 }
 
-async function ensureUploadsDir() {
-  const uploadDir = path.join(process.cwd(), "public", "uploads");
-  await fs.mkdir(uploadDir, { recursive: true });
-  return uploadDir;
-}
-
 async function saveOptionalFile(file: File | null): Promise<string | null> {
   if (!file) return null;
   if (!file.name) return null;
@@ -44,16 +36,7 @@ async function saveOptionalFile(file: File | null): Promise<string | null> {
   const allowed = ["application/pdf", "image/png", "image/jpeg", "image/webp"];
   if (!allowed.includes(file.type)) return null;
 
-  const uploadDir = await ensureUploadsDir();
-  const bytes = Buffer.from(await file.arrayBuffer());
-
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const unique = `${Date.now()}-${randomBytes(6).toString("hex")}-${safeName}`;
-  const fullPath = path.join(uploadDir, unique);
-
-  await fs.writeFile(fullPath, bytes);
-
-  return `/api/files/${encodeURIComponent(unique)}`;
+  return storeBlobFile(file, file.name, file.type, "agent-applications");
 }
 
 export async function POST(req: Request) {

@@ -8,6 +8,8 @@ import { db } from "@/lib/db";
 import { calculateProfileCompletionDetails } from "@/lib/profile-completion";
 import TimeGreeting from "./TimeGreeting";
 
+export const dynamic = "force-dynamic";
+
 type AppStatus =
   | "DRAFT"
   | "DOCUMENTS_PENDING"

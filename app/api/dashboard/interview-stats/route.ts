@@ -36,7 +36,7 @@ function asOutcomeCounts(rows: Array<{ outcome: InterviewOutcome | null; _count:
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (session.user.roleName !== "ADMIN" && session.user.roleName !== "MANAGER" && session.user.roleName !== "ADMIN") {
+  if (session.user.roleName !== "ADMIN" && session.user.roleName !== "MANAGER") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
