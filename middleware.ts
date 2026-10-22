@@ -74,7 +74,8 @@ export async function middleware(request: NextRequest) {
   if (pathname === "/api/auth/register-student") return NextResponse.next();
   if (pathname === "/api/auth/forgot-password") return NextResponse.next();
   if (pathname === "/api/auth/reset-password") return NextResponse.next();
-  if (pathname === "/api/chat/session/create") return NextResponse.next();
+  // Eduvi chat serves logged-out website visitors; each chat route checks the session type itself
+  if (pathname.startsWith("/api/chat/")) return NextResponse.next();
 
   // ── /register ───────────────────────────────────────────────────────────────
   if (pathname === "/register") {

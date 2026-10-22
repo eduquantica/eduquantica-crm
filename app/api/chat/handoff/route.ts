@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ChatStatus } from "@prisma/client";
+import { getServerSession } from "next-auth/next";
+import { ChatSessionType, ChatStatus } from "@prisma/client";
+import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getNextCounsellor } from "@/lib/counsellor";
 import { NotificationService } from "@/lib/notifications";
@@ -20,11 +22,20 @@ export async function POST(req: NextRequest) {
       select: {
         id: true,
         leadId: true,
+        userId: true,
+        sessionType: true,
       },
     });
 
     if (!chatSession) {
       return NextResponse.json({ error: "Session not found" }, { status: 404 });
+    }
+
+    if (chatSession.sessionType !== ChatSessionType.PUBLIC_VISITOR) {
+      const session = await getServerSession(authOptions);
+      if (!session?.user?.id || chatSession.userId !== session.user.id) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
     }
 
     let assignedCounsellorId: string | null = null;
