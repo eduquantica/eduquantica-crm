@@ -163,12 +163,11 @@ function extractPublicFlowContext(history: ConversationTurn[]): PublicFlowContex
   const level = ["bachelor", "undergraduate", "masters", "master", "phd", "doctorate", "diploma", "foundation"]
     .find((token) => userText.includes(token));
 
+  // Per message, so words like "know" or "already" don't count as a no/yes answer.
   let docsReady: "yes" | "no" | undefined;
-  if (["documents ready", "docs ready", "i have my documents", "yes", "ready"].some((token) => userText.includes(token))) {
-    docsReady = "yes";
-  }
-  if (["not ready", "don't have", "do not have", "missing documents", "no"].some((token) => userText.includes(token))) {
-    docsReady = "no";
+  for (const turn of history) {
+    if (turn.role !== "USER") continue;
+    docsReady = extractDocReadinessFromText(turn.content.toLowerCase()) ?? docsReady;
   }
 
   return {
@@ -209,45 +208,40 @@ function getLastUserMessage(history: ConversationTurn[]) {
   return turns.at(-1)?.content.toLowerCase() || "";
 }
 
+const ASK_COUNTRY = "Great choice, and I would love to help you study abroad. Which country are you planning to apply to?";
+const ASK_LEVEL = "Perfect. Which study level are you targeting: Bachelor's, Master's, Diploma, or PhD?";
+const ASK_DOCS = "Thanks, that helps. Do you already have your core documents ready (passport, transcripts, English test, and SOP)?";
+const OFFER_PLAN = "Excellent. Based on your country and study level, I can now guide your next steps for applications, documents, and visa preparation. Would you like a step-by-step plan now?";
+
+// Real questions and longer messages go to Claude; the script only handles short answers to its own questions.
+function isQuestionOrFreeText(text: string) {
+  const trimmed = text.trim();
+  return trimmed.includes("?")
+    || /^(what|how|which|when|where|why|who|can|could|do|does|is|are|should|will|would|tell me)\b/.test(trimmed)
+    || trimmed.split(/\s+/).length > 12;
+}
+
 function getDeterministicPublicFlowReply(params: GetEduviResponseParams): string | null {
   if (params.sessionType !== ChatSessionType.PUBLIC_VISITOR) return null;
 
   const history = params.conversationHistory;
   const lastUserMessage = getLastUserMessage(history);
-  const priorHistory = history.slice(0, -1);
-  const priorFlow = extractPublicFlowContext(priorHistory);
+  if (isQuestionOrFreeText(lastUserMessage)) return null;
 
-  if (!priorFlow.hasStudyIntent && hasStudyIntentInText(lastUserMessage)) {
-    return "Great choice, and I would love to help you study abroad. Which country are you planning to apply to?";
-  }
+  const priorFlow = extractPublicFlowContext(history.slice(0, -1));
+  const flow = extractPublicFlowContext(history);
+  if (!flow.hasStudyIntent) return null;
 
-  if (priorFlow.hasStudyIntent && !priorFlow.country && COUNTRY_PATTERNS.some((token) => lastUserMessage.includes(token))) {
-    return "Perfect. Which study level are you targeting: Bachelor's, Master's, Diploma, or PhD?";
-  }
+  // Ask only for the next detail still missing, counting what this message just gave.
+  if (!flow.country) return ASK_COUNTRY;
 
-  if (
-    priorFlow.hasStudyIntent
-    && Boolean(priorFlow.country)
-    && !priorFlow.level
-    && ["bachelor", "undergraduate", "masters", "master", "phd", "doctorate", "diploma", "foundation"]
-      .some((token) => lastUserMessage.includes(token))
-  ) {
-    return "Thanks, that helps. Do you already have your core documents ready (passport, transcripts, English test, and SOP)?";
-  }
+  const addedDetail = !priorFlow.hasStudyIntent
+    || (!priorFlow.country && Boolean(flow.country))
+    || (!priorFlow.level && Boolean(flow.level));
 
-  if (
-    priorFlow.hasStudyIntent
-    && Boolean(priorFlow.country)
-    && Boolean(priorFlow.level)
-    && !priorFlow.docsReady
-    && extractDocReadinessFromText(lastUserMessage)
-  ) {
-    return "Excellent. Based on your country and study level, I can now guide your next steps for applications, documents, and visa preparation. Would you like a step-by-step plan now?";
-  }
-
-  if (priorFlow.hasStudyIntent && !priorFlow.country) {
-    return "Great choice, and I would love to help you study abroad. Which country are you planning to apply to?";
-  }
+  if (!flow.level) return addedDetail ? ASK_LEVEL : null;
+  if (!flow.docsReady) return addedDetail ? ASK_DOCS : null;
+  if (!priorFlow.docsReady && extractDocReadinessFromText(lastUserMessage)) return OFFER_PLAN;
 
   return null;
 }
@@ -275,6 +269,8 @@ async function callClaude(system: string, messages: Array<{ role: "user" | "assi
   });
 
   if (!response.ok) {
+    // Surface the reason (e.g. low credit balance, retired model) in the server logs.
+    console.error("[eduvi] Claude API error", response.status, (await response.text()).slice(0, 300));
     return "I’m here to help with applications, visa guidance, and your next steps. Would you like me to connect you with a counsellor for personalised support?";
   }
 
