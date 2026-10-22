@@ -6,6 +6,7 @@
 import Fuse from "fuse.js";
 import { SubjectCategory } from "@prisma/client";
 import { fetchStoredFile } from "@/lib/stored-file";
+import { claudeText, type ClaudeContent } from "@/lib/claude";
 
 export type TranscriptOcrRow = {
   subjectName: string;
@@ -41,7 +42,6 @@ type FuseSubjectRecord = {
 // ────────────────────────────────────────────────────────────────────────────
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
-const CLAUDE_MODEL = "claude-sonnet-4-6";
 
 // ─── Subject master list ─────────────────────────────────────────────────────
 
@@ -224,21 +224,12 @@ export async function scanTranscript(fileUrl: string, qualType: string): Promise
 
   const qualHint = qualType ? ` This is a ${qualType} qualification transcript.` : "";
 
-  const apiRes = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01",
-      "anthropic-beta": "pdfs-2024-09-25",
-    },
-    body: JSON.stringify({
-      model: CLAUDE_MODEL,
-      max_tokens: 2048,
-      messages: [
-        {
-          role: "user",
-          content: [
+  const reply = await claudeText({
+    label: "transcript-ocr",
+    messages: [
+      {
+        role: "user",
+        content: [
             buildDocContent(base64, mediaType),
             {
               type: "text",
@@ -250,19 +241,18 @@ Return ONLY a JSON array with no markdown:
 ]
 Include every subject row you can see. If you cannot read a subject or grade clearly, use your best guess and set confidence below 0.6. Return only the JSON array.`,
             },
-          ],
-        },
-      ],
-    }),
+          ] as ClaudeContent,
+      },
+    ],
+    maxTokens: 12000,
+    effort: "low",
   });
 
-  if (!apiRes.ok) {
-    const body = await apiRes.text().catch(() => "");
-    throw new Error(`Claude transcript OCR failed: ${apiRes.status} ${body.slice(0, 200)}`);
+  if (!reply) {
+    throw new Error("Claude transcript OCR failed (see [claude:transcript-ocr] log)");
   }
 
-  const payload = (await apiRes.json()) as { content?: Array<{ type: string; text?: string }> };
-  const text = payload.content?.find((c) => c.type === "text")?.text?.trim() || "";
+  const text = reply;
 
   const arrStart = text.indexOf("[");
   const arrEnd = text.lastIndexOf("]");

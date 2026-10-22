@@ -1,4 +1,5 @@
 import { ChatSessionType, type ChatMessage, type EduviKnowledgeBase } from "@prisma/client";
+import { claudeText, isClaudeConfigured } from "@/lib/claude";
 
 type ConversationTurn = Pick<ChatMessage, "role" | "content" | "language" | "createdAt">;
 
@@ -236,36 +237,14 @@ function getDeterministicPublicFlowReply(params: GetEduviResponseParams): string
 }
 
 async function callClaude(system: string, messages: Array<{ role: "user" | "assistant"; content: string }>) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
+  if (!isClaudeConfigured()) {
     return "I can help with studying abroad, applications, documents, visa basics, and next steps. Would you like personalised support from a counsellor as well?";
   }
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-latest",
-      max_tokens: 800,
-      temperature: 0.3,
-      system,
-      messages,
-    }),
-  });
-
-  if (!response.ok) {
-    // Surface the reason (e.g. low credit balance, retired model) in the server logs.
-    console.error("[eduvi] Claude API error", response.status, (await response.text()).slice(0, 300));
-    return "I’m here to help with applications, visa guidance, and your next steps. Would you like me to connect you with a counsellor for personalised support?";
-  }
-
-  const payload = (await response.json()) as { content?: Array<{ type: string; text?: string }> };
-  return payload.content?.find((part) => part.type === "text")?.text?.trim()
-    || "I can help with that. Would you like me to connect you with a counsellor for personalised guidance?";
+  // Low effort keeps the visitor chat fast; thinking still counts toward maxTokens.
+  const reply = await claudeText({ label: "eduvi-chat", system, messages, maxTokens: 4000, effort: "low" });
+  return reply
+    || "I’m here to help with applications, visa guidance, and your next steps. Would you like me to connect you with a counsellor for personalised support?";
 }
 
 export function shouldTriggerLeadCapture(message: string, leadContext?: LeadContext) {
@@ -300,33 +279,15 @@ export function shouldEscalateToHuman(message: string) {
 }
 
 export async function detectLanguageCode(text: string): Promise<string> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return "en";
-
-  try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-latest",
-        max_tokens: 30,
-        temperature: 0,
-        system: "Detect the language and return only ISO 639-1 code.",
-        messages: [{ role: "user", content: text }],
-      }),
-    });
-
-    if (!response.ok) return "en";
-    const payload = (await response.json()) as { content?: Array<{ type: string; text?: string }> };
-    const code = payload.content?.find((part) => part.type === "text")?.text?.trim().toLowerCase() || "en";
-    return /^[a-z]{2}$/.test(code) ? code : "en";
-  } catch {
-    return "en";
-  }
+  const reply = await claudeText({
+    label: "eduvi-language",
+    system: "Detect the language and return only its ISO 639-1 code.",
+    messages: [{ role: "user", content: text }],
+    maxTokens: 1000,
+    effort: "low",
+  });
+  const code = reply?.trim().toLowerCase() || "en";
+  return /^[a-z]{2}$/.test(code) ? code : "en";
 }
 
 const LANGUAGE_NAME: Record<string, string> = {
@@ -345,37 +306,19 @@ const LANGUAGE_NAME: Record<string, string> = {
 export async function translateResponse(text: string, targetLanguage: string): Promise<string> {
   if (!targetLanguage || targetLanguage === "en") return text;
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return text;
-
-  try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
+  const translated = await claudeText({
+    label: "eduvi-translate",
+    system: "You are a precise translator. Return the translation only.",
+    messages: [
+      {
+        role: "user",
+        content: `Translate this to ${LANGUAGE_NAME[targetLanguage] || targetLanguage} naturally, keeping a friendly and professional tone:\n\n${text}`,
       },
-      body: JSON.stringify({
-        model: process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-latest",
-        max_tokens: 900,
-        temperature: 0.2,
-        system: "You are a precise translator. Return translation only.",
-        messages: [
-          {
-            role: "user",
-            content: `Translate this to ${LANGUAGE_NAME[targetLanguage] || targetLanguage} naturally, keeping a friendly and professional tone:\n\n${text}`,
-          },
-        ],
-      }),
-    });
-
-    if (!response.ok) return text;
-    const payload = (await response.json()) as { content?: Array<{ type: string; text?: string }> };
-    return payload.content?.find((part) => part.type === "text")?.text?.trim() || text;
-  } catch {
-    return text;
-  }
+    ],
+    maxTokens: 4000,
+    effort: "low",
+  });
+  return translated || text;
 }
 
 export async function getEduviResponse(params: GetEduviResponseParams): Promise<EduviResponse> {

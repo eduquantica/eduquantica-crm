@@ -2,6 +2,7 @@ import mammoth from "mammoth";
 import { PDFParse } from "pdf-parse";
 import { checkGrammar } from "@/lib/languagetool";
 import { fetchStoredFile } from "@/lib/stored-file";
+import { claudeText } from "@/lib/claude";
 
 type AnalysisLevel = "Low" | "Medium" | "High";
 
@@ -182,24 +183,14 @@ async function callAnthropicForJson(prompt: string, maxTokens: number) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return null;
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-latest",
-      max_tokens: maxTokens,
-      temperature: 0,
-      messages: [{ role: "user", content: prompt }],
-    }),
-  });
-
-  if (!response.ok) return null;
-  const data = (await response.json()) as { content?: Array<{ type: string; text?: string }> };
-  const rawText = data.content?.find((item) => item.type === "text")?.text?.trim() || "";
+  const rawText = (await claudeText({
+    label: "sop-analysis",
+    messages: [{ role: "user", content: prompt }],
+    // Room for thinking on top of the JSON the caller sized maxTokens for.
+    maxTokens: maxTokens + 8000,
+    effort: "medium",
+  })) || "";
+  if (!rawText) return null;
   const jsonText = extractJsonObject(rawText);
   if (!jsonText) return null;
 

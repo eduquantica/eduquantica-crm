@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { claudeText } from "@/lib/claude";
 
 function compactText(value: string | null | undefined): string {
   return (value || "").trim();
@@ -69,33 +70,18 @@ export async function generateProfileSummary(cvProfileId: string): Promise<strin
 
   const systemPrompt = `You are a professional CV writer. Write a concise 3-4 sentence profile summary for the top of a CV. The summary should:\n- Highlight the person's strongest qualifications\n- Mention their field of study or expertise\n- Show their career ambition\n- Sound professional and confident\n- Be written in third person\n- Be between 60 and 80 words\n\nReturn only the profile summary text.\nNo headings, no bullet points, just the paragraph.`;
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-latest",
-      max_tokens: 220,
-      temperature: 0.5,
-      system: systemPrompt,
-      messages: [
-        {
-          role: "user",
-          content: `Generate a CV profile summary using this JSON data:\n${JSON.stringify(payload)}`,
-        },
-      ],
-    }),
+  const text = await claudeText({
+    label: "cv-summary",
+    system: systemPrompt,
+    messages: [
+      {
+        role: "user",
+        content: `Generate a CV profile summary using this JSON data:\n${JSON.stringify(payload)}`,
+      },
+    ],
+    maxTokens: 4000,
+    effort: "low",
   });
-
-  if (!response.ok) {
-    throw new Error("Failed to generate profile summary");
-  }
-
-  const data = (await response.json()) as { content?: Array<{ type: string; text?: string }> };
-  const text = data.content?.find((part) => part.type === "text")?.text?.trim();
   if (!text) {
     throw new Error("Empty summary generated");
   }

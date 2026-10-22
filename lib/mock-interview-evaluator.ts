@@ -1,4 +1,5 @@
 import { ROUND_SCORE_WEIGHTS } from "@/lib/mock-interview-questions";
+import { claudeText } from "@/lib/claude";
 
 type EvalInput = {
   universityAboutText?: string | null;
@@ -133,31 +134,20 @@ async function callClaude(input: EvalInput): Promise<AnswerEvaluationResult> {
   );
 
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 1000,
-        temperature: 0.2,
-        system: EVALUATOR_SYSTEM_PROMPT,
-        messages: [{ role: "user", content: userPrompt }],
-      }),
+    const reply = await claudeText({
+      label: "mock-interview-answer",
+      system: EVALUATOR_SYSTEM_PROMPT,
+      messages: [{ role: "user", content: userPrompt }],
+      maxTokens: 8000,
+      effort: "medium",
     });
 
-    if (!response.ok) {
+    if (!reply) {
       return heuristicEvaluation(input);
     }
 
-    const payload = (await response.json()) as {
-      content?: Array<{ type: string; text?: string }>;
-    };
-
-    const text = payload.content?.find((part) => part.type === "text")?.text || "{}";
+    // Keep only the JSON object, in case the reply wraps it in a code fence.
+    const text = reply.slice(reply.indexOf("{"), reply.lastIndexOf("}") + 1) || "{}";
     const parsed = JSON.parse(text) as Partial<AnswerEvaluationResult>;
     return normalizeEvaluation(parsed);
   } catch {
@@ -248,32 +238,18 @@ export async function generateMockInterviewReportWithClaude(input: {
   }
 
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 1400,
-        temperature: 0.2,
-        system:
-          "You are an admissions/visa interview coach. Return strict JSON only with keys: recommendation, strengths (string[]), areasToImprove (string[]), detailedFeedback.",
-        messages: [
-          {
-            role: "user",
-            content: JSON.stringify(input),
-          },
-        ],
-      }),
+    const reply = await claudeText({
+      label: "mock-interview-report",
+      system:
+        "You are an admissions/visa interview coach. Return strict JSON only with keys: recommendation, strengths (string[]), areasToImprove (string[]), detailedFeedback.",
+      messages: [{ role: "user", content: JSON.stringify(input) }],
+      maxTokens: 8000,
+      effort: "medium",
     });
 
-    if (!response.ok) throw new Error("Claude report generation failed");
-
-    const payload = (await response.json()) as { content?: Array<{ type: string; text?: string }> };
-    const text = payload.content?.find((x) => x.type === "text")?.text || "{}";
+    if (!reply) throw new Error("Claude report generation failed");
+    // Keep only the JSON object, in case the reply wraps it in a code fence.
+    const text = reply.slice(reply.indexOf("{"), reply.lastIndexOf("}") + 1) || "{}";
     const parsed = JSON.parse(text) as {
       recommendation?: string;
       strengths?: string[];

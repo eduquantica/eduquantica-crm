@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { fetchStoredFile } from "@/lib/stored-file";
+import { claudeText, type ClaudeContent } from "@/lib/claude";
 
 /**
  * OCR library — Claude vision is the primary engine.
@@ -11,8 +12,6 @@ import { fetchStoredFile } from "@/lib/stored-file";
 // const MINDEE_API_URL = "https://api.mindee.net/v1/products";
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
-const CLAUDE_MODEL = "claude-sonnet-4-6";
-const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
 
 if (!ANTHROPIC_API_KEY) {
   console.warn("[OCR] ANTHROPIC_API_KEY not set — document scanning will fail.");
@@ -103,28 +102,13 @@ function buildDocumentContent(base64: string, mediaType: ClaudeMediaType): unkno
 async function callClaude(content: unknown[], maxTokens = 1024): Promise<string> {
   if (!ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY is not configured");
 
-  const res = await fetch(CLAUDE_API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01",
-      "anthropic-beta": "pdfs-2024-09-25",
-    },
-    body: JSON.stringify({
-      model: CLAUDE_MODEL,
-      max_tokens: maxTokens,
-      messages: [{ role: "user", content }],
-    }),
+  const text = await claudeText({
+    label: "document-ocr",
+    messages: [{ role: "user", content: content as ClaudeContent }],
+    // Room for thinking on top of the JSON the caller sized maxTokens for.
+    maxTokens: maxTokens + 8000,
+    effort: "low",
   });
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`Claude API error ${res.status}: ${body.slice(0, 200)}`);
-  }
-
-  const payload = (await res.json()) as { content?: Array<{ type: string; text?: string }> };
-  const text = payload.content?.find((c) => c.type === "text")?.text?.trim() || "";
   if (!text) throw new Error("Claude returned empty response");
   return text;
 }

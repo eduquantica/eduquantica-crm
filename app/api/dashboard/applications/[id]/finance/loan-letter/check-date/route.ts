@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { fetchStoredFile } from "@/lib/stored-file";
+import { claudeText, type ClaudeContent } from "@/lib/claude";
 
 export const maxDuration = 60;
 
@@ -77,28 +78,12 @@ async function extractLoanLetterDateWithAnthropic(fileUrl: string): Promise<Date
     });
   }
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-latest",
-      max_tokens: 220,
-      messages: [
-        {
-          role: "user",
-          content: contentBlocks,
-        },
-      ],
-    }),
-  });
-
-  if (!response.ok) return null;
-  const json = await response.json() as { content?: Array<{ type: string; text?: string }> };
-  const text = (json.content || []).find((item) => item.type === "text")?.text || "";
+  const text = (await claudeText({
+    label: "loan-letter-date",
+    messages: [{ role: "user", content: contentBlocks as unknown as ClaudeContent }],
+    maxTokens: 4000,
+    effort: "low",
+  })) || "";
 
   const parsedJson = (() => {
     const fenced = text.match(/\{[\s\S]*\}/);

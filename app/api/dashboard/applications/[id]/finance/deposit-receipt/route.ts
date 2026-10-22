@@ -8,6 +8,7 @@ export const maxDuration = 60;
 import { scanFinancialDoc } from "@/lib/mindee";
 import { saveToStudentDocument } from "@/lib/saveToStudentDocument";
 import { fetchStoredFile } from "@/lib/stored-file";
+import { claudeText, type ClaudeContent } from "@/lib/claude";
 
 const schema = z.object({
   fileName: z.string().min(1),
@@ -87,34 +88,23 @@ async function extractDepositWithAnthropic(fileUrl: string): Promise<AnthropicDe
         },
       };
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-6",
-      max_tokens: 350,
-      messages: [
-        {
-          role: "user",
-          content: [
+  const text = (await claudeText({
+    label: "deposit-receipt",
+    messages: [
+      {
+        role: "user",
+        content: [
             fileBlock,
             {
               type: "text",
               text: "Extract deposit receipt values and return ONLY valid JSON with no markdown in exactly this shape: {\"amountPaid\": number or null, \"currency\": string or null, \"paymentDate\": string or null}. paymentDate must be YYYY-MM-DD when known.",
             },
-          ],
-        },
-      ],
-    }),
-  });
-
-  if (!response.ok) return null;
-  const payload = (await response.json()) as { content?: Array<{ type: string; text?: string }> };
-  const text = payload.content?.find((item) => item.type === "text")?.text || "";
+          ] as ClaudeContent,
+      },
+    ],
+    maxTokens: 6000,
+    effort: "low",
+  })) || "";
   const match = text.match(/\{[\s\S]*\}/);
   if (!match) return null;
 
