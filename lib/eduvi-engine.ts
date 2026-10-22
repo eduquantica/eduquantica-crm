@@ -178,17 +178,6 @@ function extractPublicFlowContext(history: ConversationTurn[]): PublicFlowContex
   };
 }
 
-function hasStudyIntentInText(text: string) {
-  return [
-    "study abroad",
-    "want to study",
-    "i want to apply",
-    "how do i apply",
-    "how do i start",
-    "admission",
-  ].some((token) => text.includes(token));
-}
-
 function extractDocReadinessFromText(text: string): "yes" | "no" | undefined {
   if (["not ready", "don't have", "do not have", "missing documents"].some((token) => text.includes(token))) {
     return "no";
