@@ -39,3 +39,11 @@ next-env.d.ts
 
 /lib/generated/prisma
 storage/uploads/
+
+# uploaded files (student documents) — stored in Vercel Blob, never in git
+/storage/
+/public/uploads/
+
+# env files pulled from Vercel
+.env.vercel
+.env*.vercel
