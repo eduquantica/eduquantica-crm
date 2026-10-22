@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useSession } from "next-auth/react"
 
 const links = [
   { href: "/agent/dashboard", label: "Dashboard" },
@@ -13,11 +14,15 @@ const links = [
   { href: "/agent/cv-builder", label: "My CV" },
   { href: "/agent/messages", label: "Messages" },
   { href: "/agent/notifications", label: "Notifications" },
+  { href: "/agent/business-registration", label: "Business Registration", ownerOnly: true },
   { href: "/agent/settings", label: "Settings" },
 ]
 
 export default function AgentSidebar() {
   const pathname = usePathname()
+  const { data: session } = useSession()
+  // The business registration belongs to the agency owner (SUB_AGENT), not their team members.
+  const isOwner = session?.user?.roleName === "SUB_AGENT"
 
   return (
     <aside className="portal-sidebar flex h-screen w-64 flex-shrink-0 flex-col overflow-y-auto border-r border-white/10">
@@ -26,7 +31,7 @@ export default function AgentSidebar() {
         <p className="text-xs text-white/75">Agent Portal</p>
       </div>
       <nav className="flex flex-col gap-1 px-3 py-4">
-        {links.map((link) => {
+        {links.filter((link) => !link.ownerOnly || isOwner).map((link) => {
           const active = pathname === link.href || pathname.startsWith(`${link.href}/`)
           return (
             <Link

@@ -189,6 +189,10 @@ export async function middleware(request: NextRequest) {
     if (!isAgentRole(roleName!)) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
+    // Unapproved sub-agents complete their business registration before review
+    if (pathname === "/agent/business-registration" && roleName === "SUB_AGENT") {
+      return NextResponse.next();
+    }
     if (roleName === "SUB_AGENT" && !subAgentApproved) {
       return NextResponse.redirect(new URL("/agent/pending", request.url));
     }

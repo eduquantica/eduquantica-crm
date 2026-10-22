@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
 type Tab = "overview" | "kpi" | "students" | "commissions" | "team" | "certificate";
 
@@ -358,6 +359,9 @@ export default function SubAgentProfileClient({ id }: { id: string }) {
           <p className="text-xs text-slate-500 mt-1">Approval date: {data.header.approvalDate ? new Date(data.header.approvalDate).toLocaleDateString("en-GB") : "-"}</p>
         </div>
         <div className="flex items-center gap-2">
+          <Link href={`/dashboard/sub-agents/applications/${id}`} className="rounded-md border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50">
+            Business registration
+          </Link>
           <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${data.header.status === "APPROVED" ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}>
             {data.header.status}
           </span>

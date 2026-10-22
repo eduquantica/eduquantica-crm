@@ -1785,6 +1785,7 @@ model SubAgent {
   marketingMaterials MarketingMaterial[]
   staffMembers SubAgentStaff[]
   tierCertificates SubAgentTierCertificate[]
+  businessRegistration SubAgentBusinessRegistration?
   plOffices    PLOffice[]
   plIncomes    PLIncome[]
   plExpenses   PLExpense[]
@@ -1858,6 +1859,82 @@ model MarketingMaterial {
   @@index([isActive])
   @@index([linkedUniversityId])
   @@index([subAgentOwnerId])
+}
+
+// Business registration a sub-agent completes after creating an account; approval needs it submitted.
+// Multi-choice answers are stored as option codes (see lib/agent-business-registration.ts).
+model SubAgentBusinessRegistration {
+  id          String   @id @default(cuid())
+  subAgentId  String   @unique
+  subAgent    SubAgent @relation(fields: [subAgentId], references: [id], onDelete: Cascade)
+  currentStep Int      @default(1)
+  submittedAt DateTime?
+
+  // Step 1 - Company legitimacy & compliance
+  legalBusinessName               String?
+  businessRegistrationNumber      String?
+  certificateIssuingAuthority     String?
+  yearFounded                     Int?
+  legalStructure                  String?
+  legalStructureOther             String?
+  businessCertificateUrl          String?
+  certifications                  String[] @default([])
+  certificationsOther             String?
+  britishCouncilCertificateUrl    String?
+  britishCouncilCertificateNumber String?
+
+  // Step 2 - Market presence & operation model
+  ownerFirstName           String?
+  ownerLastName            String?
+  coOwners                 String?
+  ownerIdDocumentUrl       String?
+  addressStreet            String?
+  addressCity              String?
+  addressState             String?
+  addressCountry           String?
+  addressPostalCode        String?
+  hasPhysicalOffice        Boolean?
+  headOfficeSameAsBusiness Boolean?
+  headOfficeAddress        String?
+  hasAdditionalOffices     Boolean?
+  additionalOfficesDetails String?
+  staffCount               String?
+  isFranchise              Boolean?
+  franchiseName            String?
+  servicesOffered          String[] @default([])
+  servicesOther            String?
+  feeModel                 String?
+
+  // Step 3 - Student persona & destination preferences
+  sourceCountries      String[] @default([])
+  destinationCountries String[] @default([])
+  programTypes         String[] @default([])
+  programTypesOther    String?
+  leadSources          String[] @default([])
+
+  // Step 4 - Partner experience & performance
+  hasRecruitmentExperience   Boolean?
+  yearsOfExperience          String?
+  studentsPlacedLast12Months String?
+  expectedEnrolments         String?
+  visaApprovalRate           String?
+  worksWithAggregators       Boolean?
+  aggregatorsList            String?
+  subAgentsManaged           String?
+  subAgentManagementProcess  String?
+  hasOnlinePresence          Boolean?
+  websiteUrl                 String?
+  linkedinUrl                String?
+  facebookUrl                String?
+  instagramUrl               String?
+  tiktokUrl                  String?
+  consentAccepted            Boolean  @default(false)
+  consentAt                  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([submittedAt])
 }
 
 model SubAgentAgreement {

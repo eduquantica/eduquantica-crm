@@ -42,6 +42,7 @@ export async function GET(
       revokedBy: true,
       revokeReason: true,
       createdAt: true,
+      businessRegistration: { select: { submittedAt: true, britishCouncilCertificateUrl: true, legalBusinessName: true } },
       user: {
         select: {
           id: true,

@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { sendMail } from "@/lib/email";
 import { randomBytes } from "crypto";
 import { NotificationService } from "@/lib/notifications";
+import { getMissingFields, registrationToForm } from "@/lib/agent-business-registration";
 
 const TIER_RATE: Record<string, number> = {
   GOLD: 80,
@@ -33,6 +34,16 @@ export async function POST(
   const commissionRate = TIER_RATE[tier];
   const welcomeNote =
     typeof body.welcomeNote === "string" ? body.welcomeNote.trim() : "";
+
+  // Only British Council certified agents with a complete business registration can be approved.
+  const registration = await db.subAgentBusinessRegistration.findUnique({ where: { subAgentId: id } });
+  if (!registration?.submittedAt) {
+    return NextResponse.json({ error: "This agent has not submitted their business registration yet." }, { status: 409 });
+  }
+  const missing = getMissingFields(registrationToForm(registration));
+  if (missing.length > 0) {
+    return NextResponse.json({ error: `The business registration is incomplete: ${missing.map((m) => m.message).join(", ")}.` }, { status: 409 });
+  }
 
   try {
     const result = await db.$transaction(async (tx) => {

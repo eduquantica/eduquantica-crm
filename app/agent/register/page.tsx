@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
 import { COUNTRIES } from "@/lib/countries";
 import BrandLogo from "@/components/ui/BrandLogo";
 
@@ -44,7 +45,9 @@ export default function AgentRegisterPage() {
         setError(json.error || "Registration failed");
         return;
       }
-      router.push("/agent/register/success");
+      // Sign straight in so the partner can complete the business registration that activates the account.
+      const login = await signIn("credentials", { email: form.email, password: form.password, redirect: false });
+      router.push(login?.ok ? "/agent/business-registration" : "/agent/register/success");
     } catch {
       setError("Registration failed");
     } finally {

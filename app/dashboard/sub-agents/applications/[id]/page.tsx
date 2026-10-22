@@ -18,6 +18,8 @@ import {
   ExternalLink,
 } from "lucide-react";
 import ApplicationActions from "./ApplicationActions";
+import BusinessRegistrationReview from "./BusinessRegistrationReview";
+import { getMissingFields, registrationToForm } from "@/lib/agent-business-registration";
 
 const STATUS_BADGE: Record<SubAgentApprovalStatus, { label: string; className: string }> = {
   PENDING: { label: "Pending", className: "bg-amber-100 text-amber-700" },
@@ -86,12 +88,15 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
       agreement: {
         select: { currentTier: true, currentRate: true, isActive: true },
       },
+      businessRegistration: true,
     },
   });
 
   if (!agent) notFound();
 
   const badge = STATUS_BADGE[agent.approvalStatus];
+  const canApprove = Boolean(agent.businessRegistration?.submittedAt)
+    && getMissingFields(registrationToForm(agent.businessRegistration)).length === 0;
   const fullName =
     agent.firstName && agent.lastName
       ? `${agent.firstName} ${agent.lastName}`
@@ -130,6 +135,7 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
             id={agent.id}
             status={agent.approvalStatus}
             agentName={fullName}
+            canApprove={canApprove}
           />
         </div>
       </div>
@@ -267,6 +273,8 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
           </div>
         )}
       </div>
+
+      <BusinessRegistrationReview registration={agent.businessRegistration} approved={agent.approvalStatus === "APPROVED"} />
 
       {/* Info Request Thread */}
       {agent.infoRequests.length > 0 && (

@@ -12,6 +12,8 @@ interface Props {
   id: string;
   status: Status;
   agentName: string;
+  /** False until a complete business registration (with British Council certificate) is submitted. */
+  canApprove: boolean;
 }
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
@@ -95,8 +97,12 @@ function ActionButton({
   variant,
   icon,
   children,
+  disabled,
+  title,
 }: {
   onClick: () => void;
+  disabled?: boolean;
+  title?: string;
   variant: "green" | "blue" | "red" | "orange" | "slate";
   icon: React.ReactNode;
   children: React.ReactNode;
@@ -112,8 +118,10 @@ function ActionButton({
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
+      title={title}
       className={cn(
-        "inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition",
+        "inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed",
         cls,
       )}
     >
@@ -125,7 +133,7 @@ function ActionButton({
 
 // ─── Main component ────────────────────────────────────────────────────────────
 
-export default function ApplicationActions({ id, status, agentName }: Props) {
+export default function ApplicationActions({ id, status, agentName, canApprove }: Props) {
   const router = useRouter();
   const [modal, setModal] = useState<ModalType>(null);
   const [loading, setLoading] = useState(false);
@@ -193,6 +201,8 @@ export default function ApplicationActions({ id, status, agentName }: Props) {
               variant="green"
               icon={<CheckCircle className="w-4 h-4" />}
               onClick={() => setModal("approve")}
+              disabled={!canApprove}
+              title={canApprove ? undefined : "Waiting for a complete business registration with a British Council certificate"}
             >
               Approve
             </ActionButton>

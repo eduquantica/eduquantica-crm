@@ -101,8 +101,8 @@ export async function POST(req: NextRequest) {
     const adminEmail = process.env.ADMIN_INBOX_EMAIL || "admin@eduquantica.com";
     await sendResendEmail({
       to: adminEmail,
-      subject: `New sub-agent application from ${body.agencyName} - ${body.country}`,
-      html: `<p>New sub-agent application received.</p><p><strong>Agency:</strong> ${body.agencyName}<br/><strong>Country:</strong> ${body.country}<br/><strong>Contact:</strong> ${body.firstName} ${body.lastName} (${email})</p>`,
+      subject: `New sub-agent account: ${body.agencyName} - ${body.country}`,
+      html: `<p>A new sub-agent account was created. They will now complete the business registration (including their British Council certificate) before it can be reviewed.</p><p><strong>Agency:</strong> ${body.agencyName}<br/><strong>Country:</strong> ${body.country}<br/><strong>Contact:</strong> ${body.firstName} ${body.lastName} (${email})</p>`,
     });
 
     const adminUsers = await db.user.findMany({
@@ -115,7 +115,7 @@ export async function POST(req: NextRequest) {
         NotificationService.createNotification({
           userId: admin.id,
           type: "SUB_AGENT_APPLICATION_SUBMITTED",
-          message: `New sub-agent application from ${body.agencyName}.`,
+          message: `New sub-agent account from ${body.agencyName}. Business registration not yet submitted.`,
           linkUrl: "/dashboard/sub-agents/applications",
           actorUserId: createdUserId,
         }).catch(() => undefined),

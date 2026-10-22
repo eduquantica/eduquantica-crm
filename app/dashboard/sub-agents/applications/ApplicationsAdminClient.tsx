@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Loader2, X } from "lucide-react";
+import { toApiFilesPath } from "@/lib/file-url";
 
 type Status = "PENDING" | "INFO_REQUESTED" | "APPROVED" | "REJECTED";
 type Tier = "GOLD" | "SILVER" | "PLATINUM";
@@ -13,7 +15,20 @@ type Row = {
   approvalStatus: Status;
   createdAt: string;
   user: { name: string | null; email: string };
+  businessRegistration: Registration | null;
 };
+
+type Registration = { submittedAt: string | null; britishCouncilCertificateUrl: string | null; legalBusinessName?: string | null };
+
+function RegistrationBadge({ registration }: { registration: Registration | null }) {
+  if (registration?.submittedAt) {
+    return <span className="inline-flex px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">Submitted</span>;
+  }
+  if (registration) {
+    return <span className="inline-flex px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">In progress</span>;
+  }
+  return <span className="inline-flex px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600">Not started</span>;
+}
 
 type Detail = {
   id: string;
@@ -27,6 +42,7 @@ type Detail = {
   agencyCity: string | null;
   createdAt: string;
   approvalStatus: Status;
+  businessRegistration: Registration | null;
 };
 
 const BADGE: Record<Status, string> = {
@@ -45,6 +61,7 @@ export default function ApplicationsAdminClient() {
   const [tier, setTier] = useState<Tier>("GOLD");
   const [message, setMessage] = useState("");
   const [reason, setReason] = useState("");
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchRows();
@@ -61,6 +78,7 @@ export default function ApplicationsAdminClient() {
   async function openDetail(id: string) {
     setSelectedId(id);
     setDetail(null);
+    setActionError(null);
     const res = await fetch(`/api/admin/sub-agents/applications/${id}`);
     const json = await res.json();
     if (res.ok) setDetail(json.data);
@@ -69,6 +87,7 @@ export default function ApplicationsAdminClient() {
   async function runAction(action: "approve" | "request-info" | "reject") {
     if (!selectedId) return;
     setSaving(true);
+    setActionError(null);
     const payload: Record<string, unknown> = {};
 
     if (action === "approve") payload.tier = tier;
@@ -82,12 +101,15 @@ export default function ApplicationsAdminClient() {
     });
 
     setSaving(false);
-    if (res.ok) {
-      await openDetail(selectedId);
-      await fetchRows();
-      setMessage("");
-      setReason("");
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      setActionError(json.error || "That action failed. Please try again.");
+      return;
     }
+    await openDetail(selectedId);
+    await fetchRows();
+    setMessage("");
+    setReason("");
   }
 
   return (
@@ -108,6 +130,7 @@ export default function ApplicationsAdminClient() {
                 <th className="px-4 py-3">Contact Name</th>
                 <th className="px-4 py-3">Country</th>
                 <th className="px-4 py-3">Date Applied</th>
+                <th className="px-4 py-3">Registration</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">View</th>
               </tr>
@@ -119,6 +142,7 @@ export default function ApplicationsAdminClient() {
                   <td className="px-4 py-3">{row.user.name || "-"}</td>
                   <td className="px-4 py-3">{row.agencyCountry || "-"}</td>
                   <td className="px-4 py-3">{new Date(row.createdAt).toLocaleDateString("en-GB")}</td>
+                  <td className="px-4 py-3"><RegistrationBadge registration={row.businessRegistration} /></td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${BADGE[row.approvalStatus]}`}>{row.approvalStatus}</span>
                   </td>
@@ -156,6 +180,25 @@ export default function ApplicationsAdminClient() {
                   <p><span className="text-slate-500">Website:</span> {detail.website || "-"}</p>
                 </div>
 
+                <div className="border-t pt-4 space-y-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-slate-900">Business registration</h3>
+                    <RegistrationBadge registration={detail.businessRegistration} />
+                  </div>
+                  {detail.businessRegistration?.britishCouncilCertificateUrl ? (
+                    <a href={toApiFilesPath(detail.businessRegistration.britishCouncilCertificateUrl)} target="_blank" rel="noreferrer" className="text-blue-700 hover:underline">
+                      View British Council certificate
+                    </a>
+                  ) : (
+                    <p className="text-slate-500">No British Council certificate uploaded yet.</p>
+                  )}
+                  <Link href={`/dashboard/sub-agents/applications/${detail.id}`} className="block font-medium text-blue-700 hover:underline">
+                    Open full registration review →
+                  </Link>
+                </div>
+
+                {actionError && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{actionError}</p>}
+
                 <div className="border-t pt-4 space-y-4">
                   <div className="space-y-2">
                     <h3 className="text-sm font-semibold text-slate-900">Approve</h3>
@@ -164,7 +207,10 @@ export default function ApplicationsAdminClient() {
                       <option value="SILVER">Silver 85%</option>
                       <option value="PLATINUM">Platinum 90%</option>
                     </select>
-                    <button disabled={saving} onClick={() => runAction("approve")} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-md px-3 py-2 text-sm font-medium disabled:opacity-50">Approve</button>
+                    {!detail.businessRegistration?.submittedAt && (
+                      <p className="text-xs text-amber-700">Approval unlocks once the agent submits their business registration with a British Council certificate.</p>
+                    )}
+                    <button disabled={saving || !detail.businessRegistration?.submittedAt} onClick={() => runAction("approve")} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-md px-3 py-2 text-sm font-medium disabled:opacity-50">Approve</button>
                   </div>
 
                   <div className="space-y-2">

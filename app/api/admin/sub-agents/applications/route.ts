@@ -78,6 +78,7 @@ export async function GET(req: NextRequest) {
         rejectedAt: true,
         rejectionReason: true,
         revokedAt: true,
+        businessRegistration: { select: { submittedAt: true, britishCouncilCertificateUrl: true } },
         revokeReason: true,
         createdAt: true,
         user: {
